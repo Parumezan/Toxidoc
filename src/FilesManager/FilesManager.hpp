@@ -22,7 +22,7 @@ static const std::vector<std::string> defaultExcludeDirs = {"build", ".git", "th
 
 class FilesManager {
  public:
-  FilesManager(std::vector<fs::path> paths, bool recursive = true, fs::path configPath = "toxiconf.json",
+  FilesManager(std::vector<fs::path> paths, bool recursive = true,
                std::vector<std::string> defaultHeaderExtensions = defaultHeaderExtensions,
                std::vector<std::string> defaultExcludeDirs = defaultExcludeDirs);
   FilesManager(fs::path configPath);

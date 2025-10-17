@@ -1,6 +1,6 @@
 #include "FilesManager.hpp"
 
-FilesManager::FilesManager(std::vector<fs::path> paths, bool recursive, fs::path configPath,
+FilesManager::FilesManager(std::vector<fs::path> paths, bool recursive,
                            std::vector<std::string> defaultHeaderExtensions,
                            std::vector<std::string> defaultExcludeDirs) {}
 
@@ -109,6 +109,8 @@ auto FilesManager::loadConfig() -> std::expected<void, std::string> {
 }
 
 auto FilesManager::saveConfig() -> std::expected<void, std::string> {
+  if (configPath_.empty()) return std::unexpected("Config path is empty");
+
   json::json configJson;
   configJson["exclude_dirs"] = excludeDirs_;
   configJson["header_extensions"] = headerExtensions_;
