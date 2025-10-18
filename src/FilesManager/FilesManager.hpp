@@ -16,25 +16,23 @@ namespace fs = std::filesystem;
 namespace json = nlohmann;
 namespace bk = barkeep;
 
-static const std::vector<std::string> defaultHeaderExtensions = {".h", ".hpp", ".hh", ".hxx", ".ipp", ".tpp", ".inl"};
-
-static const std::vector<std::string> defaultExcludeDirs = {"build", ".git", "third_party", "external"};
-
 class FilesManager {
  public:
-  FilesManager(std::vector<fs::path> paths, bool recursive = true,
-               std::vector<std::string> defaultHeaderExtensions = defaultHeaderExtensions,
-               std::vector<std::string> defaultExcludeDirs = defaultExcludeDirs);
-  FilesManager(fs::path configPath);
+  FilesManager(fs::path configPath, bool noSave, std::vector<std::string> paths,
+               std::vector<std::string> defaultHeaderExtensions, std::vector<std::string> defaultExcludeDirs,
+               bool recursive);
   ~FilesManager() = default;
+  auto getSourcePaths() const -> std::vector<fs::path>;
 
  private:
   auto isExcludedDir(const fs::path &dirPath) -> bool;
   auto hasHeaderExtension(const fs::path &filePath) -> bool;
-  auto collectPathFiles(std::vector<fs::path> paths, bool recursive) -> std::vector<fs::path>;
+  auto collectPathFiles(std::vector<fs::path> paths) -> std::expected<std::vector<fs::path>, std::string>;
   auto loadConfig() -> std::expected<void, std::string>;
   auto saveConfig() -> std::expected<void, std::string>;
 
+  bool recursive_;
+  bool noSave_;
   std::vector<fs::path> sourcePaths_;
   fs::path configPath_;
   std::vector<std::string> excludeDirs_;

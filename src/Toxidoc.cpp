@@ -5,12 +5,16 @@
 int main(int ac, char **av) {
   cxxopts::Options options("Toxidoc", "C++ Documentation Manager");
 
-  options.add_options()("c,config", "Path to config file", cxxopts::value<std::string>()->default_value(""))(
+  options.add_options()("c,config", "Path to config file. If you provide this option, it will erase next parameters.",
+                        cxxopts::value<std::string>())("n,no-save", "Do not save config file after initialization",
+                                                       cxxopts::value<bool>()->default_value("false"))(
+      "s,source-paths", "Source paths (comma separated)", cxxopts::value<std::vector<std::string>>())(
       "r,recursive", "Recursively search directories", cxxopts::value<bool>()->default_value("true"))(
-      "h,header_extensions", "Header file extensions (comma separated)",
-      cxxopts::value<std::string>()->default_value(".h,.hpp,.hh,.hxx,.ipp,.tpp,.inl"))(
-      "e,exclude_dirs", "Directories to exclude (comma separated)",
-      cxxopts::value<std::string>()->default_value("build,.git,third_party,external"))("help", "Print usage");
+      "x,header-extensions", "Header file extensions (comma separated)",
+      cxxopts::value<std::vector<std::string>>()->default_value(".h,.hpp,.hh,.hxx,.ipp,.tpp,.inl"))(
+      "e,exclude-dirs", "Directories to exclude (comma separated)",
+      cxxopts::value<std::vector<std::string>>()->default_value("build,.git,third_party,external"))("h,help",
+                                                                                                    "Print usage");
 
   auto result = options.parse(ac, av);
 
@@ -19,11 +23,16 @@ int main(int ac, char **av) {
     return 0;
   }
 
-  std::string configPath = result["config"].as<std::string>();
-  bool recursive = result["recursive"].as<bool>();
+  FilesManager filesManager(
+      result.count("config") ? fs::path(result["config"].as<std::string>()) : fs::path(), result["no-save"].as<bool>(),
+      result.count("source-paths") ? result["source-paths"].as<std::vector<std::string>>() : std::vector<std::string>{},
+      result["header-extensions"].as<std::vector<std::string>>(), result["exclude-dirs"].as<std::vector<std::string>>(),
+      result["recursive"].as<bool>());
 
-  if (!configPath.empty()) {
-    FilesManager filesManager(fs::path(configPath));
-    return 0;
+  std::vector<fs::path> sourcePaths = filesManager.getSourcePaths();
+  for (const auto &path : sourcePaths) {
+    std::cout << "Source Path: " << path.string() << std::endl;
   }
+
+  return 0;
 }
