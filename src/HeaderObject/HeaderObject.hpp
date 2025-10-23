@@ -8,8 +8,8 @@ namespace fs = std::filesystem;
 enum class ObjectType {
   Unknown,
   Function,
-  Method,
   Constructor,
+  Method,
   Destructor,
   FunctionTemplate,
   Class,
@@ -22,16 +22,22 @@ enum class ObjectType {
 
 class HeaderObject {
  public:
-  HeaderObject() = default;
+  HeaderObject(ObjectType type, const fs::path &filePath, uintmax_t startLine, uintmax_t startColumn, uintmax_t endLine,
+               uintmax_t endColumn, const std::string &rawComment, const std::string &debrief);
   ~HeaderObject() = default;
+  auto getObjectAsString() const -> std::string;
 
  private:
+  auto getObjectTypeAsString() const -> std::string;
+
   ObjectType type_;
   fs::path filePath_;
   uintmax_t startLine_;
   uintmax_t startColumn_;
   uintmax_t endLine_;
   uintmax_t endColumn_;
+  std::string rawComment_;
+  std::string debrief_;
 };
 
 #endif /* !HEADEROBJECT_HPP_ */

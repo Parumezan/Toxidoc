@@ -1,0 +1,95 @@
+#include "HeaderManager.hpp"
+
+#include <iostream>
+
+auto HeaderManager::getObjectsList() const -> const std::vector<HeaderObject> & { return headerObjects_; }
+
+auto HeaderManager::processHeaderFile(const fs::path &filePath) -> std::expected<void, std::string> {
+  CXIndex index = clang_createIndex(0, 0);
+  if (!index) { return std::unexpected("Failed to create Clang index"); }
+
+  const char *args[] = {"-std=c++23", "-I."};
+  CXTranslationUnit translationUnit = clang_parseTranslationUnit(
+      index, filePath.string().c_str(), args, sizeof(args) / sizeof(args[0]), nullptr, 0, CXTranslationUnit_None);
+  if (!translationUnit) {
+    clang_disposeIndex(index);
+    return std::unexpected("Failed to parse translation unit for file: " + filePath.string());
+  }
+
+  CXCursor rootCursor = clang_getTranslationUnitCursor(translationUnit);
+
+  struct VisitData {
+    HeaderManager *manager;
+    const fs::path *filePath;
+  };
+  VisitData visitData{this, &filePath};
+  clang_visitChildren(
+      rootCursor,
+      [](CXCursor cursor, CXCursor parent, CXClientData clientData) {
+        const VisitData *vd = static_cast<const VisitData *>(clientData);
+        return vd->manager->visitor(*vd->filePath, cursor, parent, clientData);
+      },
+      &visitData);
+
+  clang_disposeTranslationUnit(translationUnit);
+  clang_disposeIndex(index);
+  return {};
+}
+
+auto HeaderManager::visitor(const fs::path &filePath, CXCursor cursor, CXCursor parent, CXClientData clientData)
+    -> CXChildVisitResult {
+  CXSourceLocation loc = clang_getCursorLocation(cursor);
+  if (!clang_Location_isFromMainFile(loc)) return CXChildVisit_Continue;
+
+  CXFile cxFile = nullptr;
+  unsigned line = 0, column = 0, offset = 0;
+  clang_getSpellingLocation(loc, &cxFile, &line, &column, &offset);
+
+  if (!cxFile) return CXChildVisit_Continue;
+
+  CXString cxFileName = clang_getFileName(cxFile);
+  const char *cFileName = clang_getCString(cxFileName);
+  std::string foundPath = cFileName ? cFileName : "";
+  clang_disposeString(cxFileName);
+
+  std::error_code ec;
+  fs::path asked = fs::weakly_canonical(filePath, ec);
+  fs::path found = fs::weakly_canonical(foundPath, ec);
+  if (asked != found) return CXChildVisit_Continue;
+
+  CXCursorKind kind = clang_getCursorKind(cursor);
+  ObjectType objType = ObjectType::Unknown;
+
+  switch (kind) {
+    case CXCursor_FunctionDecl: objType = ObjectType::Function; break;
+    case CXCursor_CXXMethod: objType = ObjectType::Method; break;
+    case CXCursor_Constructor: objType = ObjectType::Constructor; break;
+    case CXCursor_Destructor: objType = ObjectType::Destructor; break;
+    case CXCursor_FunctionTemplate: objType = ObjectType::FunctionTemplate; break;
+    case CXCursor_ClassDecl: objType = ObjectType::Class; break;
+    case CXCursor_StructDecl: objType = ObjectType::Struct; break;
+    case CXCursor_EnumDecl: objType = ObjectType::Enum; break;
+    case CXCursor_VarDecl: objType = ObjectType::Variable; break;
+    case CXCursor_Namespace: objType = ObjectType::Namespace; break;
+    case CXCursor_MacroDefinition: objType = ObjectType::Macro; break;
+    default: objType = ObjectType::Unknown; break;
+  }
+
+  if (objType != ObjectType::Unknown) {
+    CXSourceRange sourceRange = clang_getCursorExtent(cursor);
+    CXSourceLocation startLocation = clang_getRangeStart(sourceRange);
+    CXSourceLocation endLocation = clang_getRangeEnd(sourceRange);
+
+    unsigned startLine, startColumn, endLine, endColumn;
+    clang_getSpellingLocation(startLocation, nullptr, &startLine, &startColumn, nullptr);
+    clang_getSpellingLocation(endLocation, nullptr, &endLine, &endColumn, nullptr);
+
+    std::string rawComment = "";
+    std::string debrief = "";
+
+    HeaderObject headerObject(objType, filePath, startLine, startColumn, endLine, endColumn, rawComment, debrief);
+    std::cout << headerObject.getObjectAsString() << std::endl;
+    headerObjects_.push_back(headerObject);
+  }
+  return CXChildVisit_Recurse;
+}
