@@ -1,7 +1,28 @@
 #include <cxxopts.hpp>
 
 #include "FilesManager/FilesManager.hpp"
-#include "ObjectManager/ObjectManager.hpp"
+#include "ObjectsManager/ObjectsManager.hpp"
+
+static auto processDocumentationStatus(const std::vector<Object> &objects, bool verbose = false) -> int {
+  uintmax_t undocumentedCount = 0;
+  std::string statusReport;
+  for (auto &obj : objects) {
+    if (obj.isValid()) continue;
+    if (!obj.isValid() && obj.getState() != ObjectState::Removed) {
+      if (verbose)
+        spdlog::warn("{} {} - Undocumented", obj.getObjectPathAsString(), obj.getStateAsString());
+      else
+        std::cout << obj.getObjectPathAsString() << " " << obj.getObjectTypeAsString() << " " << obj.getObjectName()
+                  << " " << obj.getStateAsString() << std::endl;
+      undocumentedCount++;
+      continue;
+    }
+    if (verbose) spdlog::info("{} {}", obj.getObjectPathAsString(), obj.getStateAsString());
+  }
+  undocumentedCount > 0 ? spdlog::info("{}/{} objects are undocumented.", undocumentedCount, objects.size())
+                        : spdlog::info("All {} objects are documented.", objects.size());
+  return undocumentedCount > 0 ? 1 : 0;
+}
 
 int main(int ac, char **av) {
   cxxopts::Options options("Toxidoc", "C++ Documentation Manager");
@@ -14,8 +35,9 @@ int main(int ac, char **av) {
       "x,header-extensions", "Header file extensions (comma separated)",
       cxxopts::value<std::vector<std::string>>()->default_value(".h,.hpp,.hh,.hxx,.ipp,.tpp,.inl"))(
       "e,exclude-dirs", "Directories to exclude (comma separated)",
-      cxxopts::value<std::vector<std::string>>()->default_value("build,.git,third_party,external"))("h,help",
-                                                                                                    "Print usage");
+      cxxopts::value<std::vector<std::string>>()->default_value("build,.git,third_party,external"))(
+      "v,verbose", "Enable verbose logging to see detailed processing information",
+      cxxopts::value<bool>()->default_value("false"))("h,help", "Print usage");
 
   auto result = options.parse(ac, av);
 
@@ -30,17 +52,61 @@ int main(int ac, char **av) {
       result["header-extensions"].as<std::vector<std::string>>(), result["exclude-dirs"].as<std::vector<std::string>>(),
       result["recursive"].as<bool>());
 
-  ObjectManager objectManager;
+  ObjectsManager objectsManager;
 
   std::vector<fs::path> sourcePaths = filesManager.getSourcePaths();
   for (const auto &path : sourcePaths) {
-    auto processResult = objectManager.processHeaderFile(path);
+    auto processResult = objectsManager.processHeaderFile(path);
     if (!processResult) {
-      std::cerr << "Error processing file " << path << ": " << processResult.error() << std::endl;
+      spdlog::error("Error processing file {}: {}", path.string(), processResult.error());
       continue;
     }
   }
-  const auto &headerObjects = objectManager.getObjectsList();
-  for (const auto &obj : headerObjects) { std::cout << obj.getObjectAsString() << std::endl; }
-  return 0;
+  const auto &parsedObjects = objectsManager.getObjectsList();
+  const auto &savedObjects = filesManager.getSavedObjects();
+
+  if (savedObjects.empty()) {
+    if (!result["no-save"].as<bool>()) {
+      auto saveResult = filesManager.saveConfig(parsedObjects);
+      if (!saveResult) {
+        spdlog::error("Failed to save config: {}", saveResult.error());
+        return 1;
+      }
+    }
+    spdlog::info("Saved {} objects to config, processing documentation status.", parsedObjects.size());
+    return processDocumentationStatus(parsedObjects, result["verbose"].as<bool>());
+  }
+
+  std::vector<Object> mergedObjects;
+  for (const auto &savedObj : savedObjects) {
+    bool found = false;
+    for (const auto &parsedObj : parsedObjects) {
+      if (savedObj == parsedObj) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      mergedObjects.push_back(savedObj);
+      mergedObjects.back().setState(ObjectState::Removed);
+      continue;
+    }
+  }
+  for (const auto &parsedObj : parsedObjects) {
+    bool found = false;
+    for (const auto &savedObj : savedObjects) {
+      if (parsedObj == savedObj) {
+        found = true;
+        Object updatedObj = savedObj;
+        updatedObj.updateObject(parsedObj);
+        mergedObjects.push_back(updatedObj);
+        break;
+      }
+    }
+    if (!found) {
+      mergedObjects.push_back(parsedObj);
+      mergedObjects.back().setState(ObjectState::Added);
+    }
+  }
+  return processDocumentationStatus(mergedObjects, result["verbose"].as<bool>());
 }

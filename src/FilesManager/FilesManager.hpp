@@ -11,6 +11,8 @@
 #include <nlohmann/json.hpp>
 #include <vector>
 
+#include "ObjectsManager/Object.hpp"
+
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 namespace json = nlohmann;
@@ -23,13 +25,14 @@ class FilesManager {
                bool recursive);
   ~FilesManager() = default;
   auto getSourcePaths() const -> std::vector<fs::path>;
+  auto getSavedObjects() -> std::vector<Object>;
+  auto saveConfig(std::vector<Object> objects = {}) -> std::expected<void, std::string>;
 
  private:
+  auto loadConfig() -> std::expected<void, std::string>;
   auto isExcludedDir(const fs::path &dirPath) -> bool;
   auto hasHeaderExtension(const fs::path &filePath) -> bool;
   auto collectPathFiles(std::vector<fs::path> paths) -> std::expected<std::vector<fs::path>, std::string>;
-  auto loadConfig() -> std::expected<void, std::string>;
-  auto saveConfig() -> std::expected<void, std::string>;
 
   bool recursive_;
   bool noSave_;
@@ -37,6 +40,7 @@ class FilesManager {
   fs::path configPath_;
   std::vector<std::string> excludeDirs_;
   std::vector<std::string> headerExtensions_;
+  std::vector<Object> objects_;
 };
 
 #endif /* !FILESMANAGER_HPP_ */

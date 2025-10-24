@@ -1,5 +1,5 @@
-#ifndef OBJECTMANAGER_HPP_
-#define OBJECTMANAGER_HPP_
+#ifndef OBJECTSMANAGER_HPP_
+#define OBJECTSMANAGER_HPP_
 
 #include <clang-c/Index.h>
 #include <spdlog/spdlog.h>
@@ -12,18 +12,19 @@
 
 namespace fs = std::filesystem;
 
-class ObjectManager {
+class ObjectsManager {
  public:
-  ObjectManager() = default;
-  ~ObjectManager() = default;
+  ObjectsManager() = default;
+  ~ObjectsManager() = default;
 
   auto getObjectsList() const -> const std::vector<Object> &;
   auto processHeaderFile(const fs::path &filePath) -> std::expected<void, std::string>;
 
  private:
   auto visitor(CXCursor cursor, CXCursor parent, CXClientData clientData) -> CXChildVisitResult;
+  auto setOverloadCounter() -> void;
   std::vector<Object> objects_;
   fs::path currentFilePath_;
 };
 
-#endif /* !OBJECTMANAGER_HPP_ */
+#endif /* !OBJECTSMANAGER_HPP_ */

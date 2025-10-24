@@ -7,7 +7,9 @@ FilesManager::FilesManager(fs::path configPath, bool noSave, std::vector<std::st
       noSave_(noSave),
       recursive_(recursive),
       headerExtensions_(defaultHeaderExtensions),
-      excludeDirs_(defaultExcludeDirs) {
+      excludeDirs_(defaultExcludeDirs),
+      objects_({}) {
+  bool exiting = false;
   for (const auto &pathStr : paths) sourcePaths_.push_back(fs::path(pathStr));
   if (!configPath_.empty()) {
     auto loadResult = loadConfig();
@@ -17,11 +19,13 @@ FilesManager::FilesManager(fs::path configPath, bool noSave, std::vector<std::st
   }
   configPath_ = "toxiconf.json";
   if (sourcePaths_.empty()) {
-    spdlog::error("No source paths provided. Exiting.");
+    spdlog::error("No source paths provided, trying to load from config");
+    exiting = true;
     return;
   }
   auto loadResult = loadConfig();
   if (loadResult) return;
+  if (exiting) return;
   auto collectResult = collectPathFiles(sourcePaths_);
   if (!collectResult) {
     spdlog::error("Failed to collect source files: {}", collectResult.error());
@@ -35,6 +39,64 @@ FilesManager::FilesManager(fs::path configPath, bool noSave, std::vector<std::st
 }
 
 auto FilesManager::getSourcePaths() const -> std::vector<fs::path> { return sourcePaths_; }
+
+auto FilesManager::getSavedObjects() -> std::vector<Object> { return objects_; }
+
+auto FilesManager::saveConfig(std::vector<Object> objects) -> std::expected<void, std::string> {
+  if (configPath_.empty()) return std::unexpected("Config path is empty");
+
+  json::json configJson;
+  configJson["exclude_dirs"] = excludeDirs_;
+  configJson["header_extensions"] = headerExtensions_;
+
+  std::vector<std::string> sourcePathsStr;
+  for (const auto &path : sourcePaths_) sourcePathsStr.push_back(path.string());
+  configJson["source_paths"] = sourcePathsStr;
+
+  std::vector<json::json> objectsJson;
+  for (const auto &obj : objects) { objectsJson.push_back(obj.getObjectAsJSON()); }
+  configJson["objects"] = objectsJson;
+
+  std::ofstream configFile(configPath_);
+  if (!configFile.is_open()) return std::unexpected("Failed to open config file for writing");
+  configFile << configJson.dump(4);
+  configFile.close();
+  return {};
+}
+
+auto FilesManager::loadConfig() -> std::expected<void, std::string> {
+  if (!fs::exists(configPath_)) return std::unexpected("Config file does not exist");
+  std::ifstream configFile(configPath_);
+  if (!configFile.is_open()) return std::unexpected("Failed to open config file");
+  json::json configJson = json::json::parse(configFile, nullptr, false);
+  if (configJson.is_discarded()) return std::unexpected("Failed to parse config file");
+
+  if (configJson.contains("exclude_dirs") && configJson["exclude_dirs"].is_array()) {
+    excludeDirs_.clear();
+    for (const auto &dir : configJson["exclude_dirs"])
+      if (dir.is_string()) excludeDirs_.push_back(dir.get<std::string>());
+  }
+  if (configJson.contains("header_extensions") && configJson["header_extensions"].is_array()) {
+    headerExtensions_.clear();
+    for (const auto &ext : configJson["header_extensions"])
+      if (ext.is_string()) headerExtensions_.push_back(ext.get<std::string>());
+  }
+  if (configJson.contains("source_paths") && configJson["source_paths"].is_array()) {
+    sourcePaths_.clear();
+    for (const auto &path : configJson["source_paths"])
+      if (path.is_string()) sourcePaths_.push_back(fs::path(path.get<std::string>()));
+  }
+  if (sourcePaths_.empty()) return std::unexpected("No source paths found in config");
+
+  if (configJson.contains("objects") && configJson["objects"].is_array()) {
+    objects_.clear();
+    for (const auto &obj : configJson["objects"])
+      if (obj.is_object()) objects_.emplace_back(Object(obj));
+    if (!objects_.empty()) spdlog::info("Loaded {} objects from config", objects_.size());
+  }
+
+  return {};
+}
 
 auto FilesManager::isExcludedDir(const fs::path &dirPath) -> bool {
   return std::any_of(excludeDirs_.begin(), excludeDirs_.end(),
@@ -90,48 +152,4 @@ auto FilesManager::collectPathFiles(std::vector<fs::path> paths) -> std::expecte
   status->message(fmt::format("Collected {} source files", filesCount.load()));
   status->done();
   return collectedFiles;
-}
-
-auto FilesManager::loadConfig() -> std::expected<void, std::string> {
-  if (!fs::exists(configPath_)) return std::unexpected("Config file does not exist");
-  std::ifstream configFile(configPath_);
-  if (!configFile.is_open()) return std::unexpected("Failed to open config file");
-  json::json configJson = json::json::parse(configFile, nullptr, false);
-  if (configJson.is_discarded()) return std::unexpected("Failed to parse config file");
-
-  if (configJson.contains("exclude_dirs") && configJson["exclude_dirs"].is_array()) {
-    excludeDirs_.clear();
-    for (const auto &dir : configJson["exclude_dirs"])
-      if (dir.is_string()) excludeDirs_.push_back(dir.get<std::string>());
-  }
-  if (configJson.contains("header_extensions") && configJson["header_extensions"].is_array()) {
-    headerExtensions_.clear();
-    for (const auto &ext : configJson["header_extensions"])
-      if (ext.is_string()) headerExtensions_.push_back(ext.get<std::string>());
-  }
-  if (configJson.contains("source_paths") && configJson["source_paths"].is_array()) {
-    sourcePaths_.clear();
-    for (const auto &path : configJson["source_paths"])
-      if (path.is_string()) sourcePaths_.push_back(fs::path(path.get<std::string>()));
-  }
-  if (sourcePaths_.empty()) return std::unexpected("No source paths found in config");
-  return {};
-}
-
-auto FilesManager::saveConfig() -> std::expected<void, std::string> {
-  if (configPath_.empty()) return std::unexpected("Config path is empty");
-
-  json::json configJson;
-  configJson["exclude_dirs"] = excludeDirs_;
-  configJson["header_extensions"] = headerExtensions_;
-
-  std::vector<std::string> sourcePathsStr;
-  for (const auto &path : sourcePaths_) sourcePathsStr.push_back(path.string());
-  configJson["source_paths"] = sourcePathsStr;
-
-  std::ofstream configFile(configPath_);
-  if (!configFile.is_open()) return std::unexpected("Failed to open config file for writing");
-  configFile << configJson.dump(4);
-  configFile.close();
-  return {};
 }

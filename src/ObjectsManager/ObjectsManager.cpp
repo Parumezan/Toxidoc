@@ -1,10 +1,10 @@
-#include "ObjectManager.hpp"
+#include "ObjectsManager.hpp"
 
 #include <iostream>
 
-auto ObjectManager::getObjectsList() const -> const std::vector<Object> & { return objects_; }
+auto ObjectsManager::getObjectsList() const -> const std::vector<Object> & { return objects_; }
 
-auto ObjectManager::processHeaderFile(const fs::path &filePath) -> std::expected<void, std::string> {
+auto ObjectsManager::processHeaderFile(const fs::path &filePath) -> std::expected<void, std::string> {
   CXIndex index = clang_createIndex(0, 0);
   if (!index) { return std::unexpected("Failed to create Clang index"); }
 
@@ -22,17 +22,18 @@ auto ObjectManager::processHeaderFile(const fs::path &filePath) -> std::expected
   clang_visitChildren(
       rootCursor,
       [](CXCursor cursor, CXCursor parent, CXClientData clientData) {
-        ObjectManager *manager = static_cast<ObjectManager *>(clientData);
+        ObjectsManager *manager = static_cast<ObjectsManager *>(clientData);
         return manager->visitor(cursor, parent, clientData);
       },
       this);
 
   clang_disposeTranslationUnit(translationUnit);
   clang_disposeIndex(index);
+  setOverloadCounter();
   return {};
 }
 
-auto ObjectManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clientData) -> CXChildVisitResult {
+auto ObjectsManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clientData) -> CXChildVisitResult {
   CXSourceLocation loc = clang_getCursorLocation(cursor);
   if (!clang_Location_isFromMainFile(loc)) return CXChildVisit_Continue;
 
@@ -96,7 +97,7 @@ auto ObjectManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clien
 
     std::vector<std::string> arguments;
     if (objType == ObjectType::Function || objType == ObjectType::Method || objType == ObjectType::Constructor ||
-        objType == ObjectType::FunctionTemplate) {
+        objType == ObjectType::Destructor || objType == ObjectType::FunctionTemplate) {
       int numArgs = clang_Cursor_getNumArguments(cursor);
       for (int i = 0; i < numArgs; ++i) {
         CXCursor argCursor = clang_Cursor_getArgument(cursor, i);
@@ -109,8 +110,28 @@ auto ObjectManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clien
     }
 
     Object object(currentFilePath_, objectName, objType, startLine, startColumn, endLine, endColumn, rawComment,
-                  debrief, arguments);
+                  debrief, arguments, ObjectState::Added);
     objects_.push_back(object);
   }
   return CXChildVisit_Recurse;
+}
+
+auto ObjectsManager::setOverloadCounter() -> void {
+  std::map<std::string, uintmax_t> overloadCounters;
+  uintmax_t overload = 0;
+  for (auto &obj : objects_) {
+    if (obj.getObjectTypeAsString() == "Function" || obj.getObjectTypeAsString() == "Method" ||
+        obj.getObjectTypeAsString() == "Constructor" || obj.getObjectTypeAsString() == "Destructor" ||
+        obj.getObjectTypeAsString() == "FunctionTemplate") {
+      std::string key = obj.getObjectName();
+      if (overloadCounters.find(key) != overloadCounters.end()) {
+        overloadCounters[key]++;
+        overload = overloadCounters[key];
+      } else {
+        overloadCounters[key] = 0;
+        overload = 0;
+      }
+      obj.setOverloadIndex(overload);
+    }
+  }
 }
