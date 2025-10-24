@@ -9,7 +9,7 @@ static auto processDocumentationStatus(const std::vector<Object> &objects, bool 
   for (auto &obj : objects) {
     if (obj.isValid()) continue;
     if (!obj.isValid() && obj.getState() != ObjectState::Removed) {
-      if (verbose)
+      if (!verbose)
         spdlog::warn("{} {} - Undocumented", obj.getObjectPathAsString(), obj.getStateAsString());
       else
         std::cout << obj.getObjectPathAsString() << " " << obj.getObjectTypeAsString() << " " << obj.getObjectName()
@@ -17,7 +17,7 @@ static auto processDocumentationStatus(const std::vector<Object> &objects, bool 
       undocumentedCount++;
       continue;
     }
-    if (verbose) spdlog::info("{} {}", obj.getObjectPathAsString(), obj.getStateAsString());
+    if (!verbose) spdlog::info("{} {}", obj.getObjectPathAsString(), obj.getStateAsString());
   }
   undocumentedCount > 0 ? spdlog::info("{}/{} objects are undocumented.", undocumentedCount, objects.size())
                         : spdlog::info("All {} objects are documented.", objects.size());
@@ -77,6 +77,7 @@ int main(int ac, char **av) {
     return processDocumentationStatus(parsedObjects, result["verbose"].as<bool>());
   }
 
+  // TODO CHECK THIS LOGIC
   std::vector<Object> mergedObjects;
   for (const auto &savedObj : savedObjects) {
     bool found = false;
@@ -106,6 +107,13 @@ int main(int ac, char **av) {
     if (!found) {
       mergedObjects.push_back(parsedObj);
       mergedObjects.back().setState(ObjectState::Added);
+    }
+  }
+  if (!result["no-save"].as<bool>()) {
+    auto saveResult = filesManager.saveConfig(mergedObjects);
+    if (!saveResult) {
+      spdlog::error("Failed to save config: {}", saveResult.error());
+      return 1;
     }
   }
   return processDocumentationStatus(mergedObjects, result["verbose"].as<bool>());
