@@ -1,7 +1,7 @@
 #include <cxxopts.hpp>
 
 #include "FilesManager/FilesManager.hpp"
-#include "HeaderManager/HeaderManager.hpp"
+#include "ObjectManager/ObjectManager.hpp"
 
 int main(int ac, char **av) {
   cxxopts::Options options("Toxidoc", "C++ Documentation Manager");
@@ -30,17 +30,17 @@ int main(int ac, char **av) {
       result["header-extensions"].as<std::vector<std::string>>(), result["exclude-dirs"].as<std::vector<std::string>>(),
       result["recursive"].as<bool>());
 
-  HeaderManager headerManager;
+  ObjectManager objectManager;
 
   std::vector<fs::path> sourcePaths = filesManager.getSourcePaths();
   for (const auto &path : sourcePaths) {
-    auto processResult = headerManager.processHeaderFile(path);
+    auto processResult = objectManager.processHeaderFile(path);
     if (!processResult) {
       std::cerr << "Error processing file " << path << ": " << processResult.error() << std::endl;
       continue;
     }
   }
-  const auto &headerObjects = headerManager.getObjectsList();
+  const auto &headerObjects = objectManager.getObjectsList();
   for (const auto &obj : headerObjects) { std::cout << obj.getObjectAsString() << std::endl; }
   return 0;
 }

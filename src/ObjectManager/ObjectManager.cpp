@@ -1,10 +1,10 @@
-#include "HeaderManager.hpp"
+#include "ObjectManager.hpp"
 
 #include <iostream>
 
-auto HeaderManager::getObjectsList() const -> const std::vector<HeaderObject> & { return headerObjects_; }
+auto ObjectManager::getObjectsList() const -> const std::vector<Object> & { return objects_; }
 
-auto HeaderManager::processHeaderFile(const fs::path &filePath) -> std::expected<void, std::string> {
+auto ObjectManager::processHeaderFile(const fs::path &filePath) -> std::expected<void, std::string> {
   CXIndex index = clang_createIndex(0, 0);
   if (!index) { return std::unexpected("Failed to create Clang index"); }
 
@@ -17,27 +17,22 @@ auto HeaderManager::processHeaderFile(const fs::path &filePath) -> std::expected
   }
 
   CXCursor rootCursor = clang_getTranslationUnitCursor(translationUnit);
+  currentFilePath_ = filePath;
 
-  struct VisitData {
-    HeaderManager *manager;
-    const fs::path *filePath;
-  };
-  VisitData visitData{this, &filePath};
   clang_visitChildren(
       rootCursor,
       [](CXCursor cursor, CXCursor parent, CXClientData clientData) {
-        const VisitData *vd = static_cast<const VisitData *>(clientData);
-        return vd->manager->visitor(*vd->filePath, cursor, parent, clientData);
+        ObjectManager *manager = static_cast<ObjectManager *>(clientData);
+        return manager->visitor(cursor, parent, clientData);
       },
-      &visitData);
+      this);
 
   clang_disposeTranslationUnit(translationUnit);
   clang_disposeIndex(index);
   return {};
 }
 
-auto HeaderManager::visitor(const fs::path &filePath, CXCursor cursor, CXCursor parent, CXClientData clientData)
-    -> CXChildVisitResult {
+auto ObjectManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clientData) -> CXChildVisitResult {
   CXSourceLocation loc = clang_getCursorLocation(cursor);
   if (!clang_Location_isFromMainFile(loc)) return CXChildVisit_Continue;
 
@@ -53,7 +48,7 @@ auto HeaderManager::visitor(const fs::path &filePath, CXCursor cursor, CXCursor 
   clang_disposeString(cxFileName);
 
   std::error_code ec;
-  fs::path asked = fs::weakly_canonical(filePath, ec);
+  fs::path asked = fs::weakly_canonical(currentFilePath_, ec);
   fs::path found = fs::weakly_canonical(foundPath, ec);
   if (asked != found) return CXChildVisit_Continue;
 
@@ -84,12 +79,38 @@ auto HeaderManager::visitor(const fs::path &filePath, CXCursor cursor, CXCursor 
     clang_getSpellingLocation(startLocation, nullptr, &startLine, &startColumn, nullptr);
     clang_getSpellingLocation(endLocation, nullptr, &endLine, &endColumn, nullptr);
 
-    std::string rawComment = "";
-    std::string debrief = "";
+    CXString rawCommentCX = clang_Cursor_getRawCommentText(cursor);
+    const char *rawCommentCStr = clang_getCString(rawCommentCX);
+    std::string rawComment = rawCommentCStr ? rawCommentCStr : "";
+    clang_disposeString(rawCommentCX);
 
-    HeaderObject headerObject(objType, filePath, startLine, startColumn, endLine, endColumn, rawComment, debrief);
-    std::cout << headerObject.getObjectAsString() << std::endl;
-    headerObjects_.push_back(headerObject);
+    CXString debriefCX = clang_Cursor_getBriefCommentText(cursor);
+    const char *debriefCStr = clang_getCString(debriefCX);
+    std::string debrief = debriefCStr ? debriefCStr : "";
+    clang_disposeString(debriefCX);
+
+    CXString nameCX = clang_getCursorSpelling(cursor);
+    const char *nameCStr = clang_getCString(nameCX);
+    std::string objectName = nameCStr ? nameCStr : "";
+    clang_disposeString(nameCX);
+
+    std::vector<std::string> arguments;
+    if (objType == ObjectType::Function || objType == ObjectType::Method || objType == ObjectType::Constructor ||
+        objType == ObjectType::FunctionTemplate) {
+      int numArgs = clang_Cursor_getNumArguments(cursor);
+      for (int i = 0; i < numArgs; ++i) {
+        CXCursor argCursor = clang_Cursor_getArgument(cursor, i);
+        CXString argNameCX = clang_getCursorSpelling(argCursor);
+        const char *argNameCStr = clang_getCString(argNameCX);
+        std::string argName = argNameCStr ? argNameCStr : "";
+        clang_disposeString(argNameCX);
+        arguments.push_back(argName);
+      }
+    }
+
+    Object object(currentFilePath_, objectName, objType, startLine, startColumn, endLine, endColumn, rawComment,
+                  debrief, arguments);
+    objects_.push_back(object);
   }
   return CXChildVisit_Recurse;
 }
