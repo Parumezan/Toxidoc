@@ -2,12 +2,15 @@
 
 FilesManager::FilesManager(fs::path configPath, bool noSave, std::vector<std::string> paths,
                            std::vector<std::string> defaultHeaderExtensions,
-                           std::vector<std::string> defaultExcludeDirs, bool recursive)
+                           std::vector<std::string> defaultExcludeDirs, std::vector<std::string> wordsBlacklist,
+                           std::vector<std::string> typesBlacklist, bool recursive)
     : configPath_(configPath),
       noSave_(noSave),
       recursive_(recursive),
       headerExtensions_(defaultHeaderExtensions),
       excludeDirs_(defaultExcludeDirs),
+      wordsBlacklist_(wordsBlacklist),
+      typesBlacklist_(typesBlacklist),
       objects_({}) {
   for (const auto &pathStr : paths) sourcePaths_.push_back(fs::path(pathStr));
 }
@@ -47,12 +50,18 @@ auto FilesManager::getSourcePaths() const -> std::vector<fs::path> { return sour
 
 auto FilesManager::getSavedObjects() -> std::vector<Object> { return objects_; }
 
+auto FilesManager::getWordsBlacklist() const -> std::vector<std::string> { return wordsBlacklist_; }
+
+auto FilesManager::getTypesBlacklist() const -> std::vector<std::string> { return typesBlacklist_; }
+
 auto FilesManager::saveConfig(std::vector<Object> objects) -> std::expected<void, std::string> {
   if (configPath_.empty()) return std::unexpected("Config path is empty");
 
   json::json configJson;
   configJson["exclude_dirs"] = excludeDirs_;
   configJson["header_extensions"] = headerExtensions_;
+  configJson["words_blacklist"] = wordsBlacklist_;
+  configJson["types_blacklist"] = typesBlacklist_;
 
   std::vector<std::string> sourcePathsStr;
   for (const auto &path : sourcePaths_) sourcePathsStr.push_back(path.string());
@@ -87,6 +96,16 @@ auto FilesManager::loadConfig() -> std::expected<void, std::string> {
     headerExtensions_.clear();
     for (const auto &ext : configJson["header_extensions"])
       if (ext.is_string()) headerExtensions_.push_back(ext.get<std::string>());
+  }
+  if (configJson.contains("words_blacklist") && configJson["words_blacklist"].is_array()) {
+    wordsBlacklist_.clear();
+    for (const auto &word : configJson["words_blacklist"])
+      if (word.is_string()) wordsBlacklist_.push_back(word.get<std::string>());
+  }
+  if (configJson.contains("types_blacklist") && configJson["types_blacklist"].is_array()) {
+    wordsBlacklist_.clear();
+    for (const auto &word : configJson["types_blacklist"])
+      if (word.is_string()) wordsBlacklist_.push_back(word.get<std::string>());
   }
   if (configJson.contains("source_paths") && configJson["source_paths"].is_array()) {
     sourcePaths_.clear();

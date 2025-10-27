@@ -2,6 +2,9 @@
 
 #include <iostream>
 
+ObjectsManager::ObjectsManager(std::vector<std::string> wordsBlacklist, std::vector<std::string> typesBlacklist)
+    : objects_({}), wordsBlacklist_(wordsBlacklist), typesBlacklist_(typesBlacklist) {}
+
 auto ObjectsManager::getObjectsList() const -> const std::vector<Object> & { return objects_; }
 
 auto ObjectsManager::processHeaderFile(const fs::path &filePath) -> std::expected<void, std::string> {
@@ -71,6 +74,10 @@ auto ObjectsManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clie
     default: objType = ObjectType::Unknown; break;
   }
 
+  for (const auto &typeStr : typesBlacklist_)
+    for (const auto &[type, name] : ObjectTypeStringMap)
+      if (name == typeStr && type == objType) return CXChildVisit_Continue;
+
   if (objType != ObjectType::Unknown) {
     CXSourceRange sourceRange = clang_getCursorExtent(cursor);
     CXSourceLocation startLocation = clang_getRangeStart(sourceRange);
@@ -80,20 +87,13 @@ auto ObjectsManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clie
     clang_getSpellingLocation(startLocation, nullptr, &startLine, &startColumn, nullptr);
     clang_getSpellingLocation(endLocation, nullptr, &endLine, &endColumn, nullptr);
 
-    CXString rawCommentCX = clang_Cursor_getRawCommentText(cursor);
-    const char *rawCommentCStr = clang_getCString(rawCommentCX);
-    std::string rawComment = rawCommentCStr ? rawCommentCStr : "";
-    clang_disposeString(rawCommentCX);
-
-    CXString debriefCX = clang_Cursor_getBriefCommentText(cursor);
-    const char *debriefCStr = clang_getCString(debriefCX);
-    std::string debrief = debriefCStr ? debriefCStr : "";
-    clang_disposeString(debriefCX);
-
     CXString nameCX = clang_getCursorSpelling(cursor);
     const char *nameCStr = clang_getCString(nameCX);
     std::string objectName = nameCStr ? nameCStr : "";
     clang_disposeString(nameCX);
+
+    for (const auto &word : wordsBlacklist_)
+      if (objectName.contains(word)) return CXChildVisit_Continue;
 
     std::vector<std::string> arguments;
     if (objType == ObjectType::Function || objType == ObjectType::Method || objType == ObjectType::Constructor ||
@@ -114,6 +114,16 @@ auto ObjectsManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clie
     const char *returnTypeCStr = clang_getCString(returnTypeStrCX);
     std::string returnType = returnTypeCStr ? returnTypeCStr : "";
     clang_disposeString(returnTypeStrCX);
+
+    CXString rawCommentCX = clang_Cursor_getRawCommentText(cursor);
+    const char *rawCommentCStr = clang_getCString(rawCommentCX);
+    std::string rawComment = rawCommentCStr ? rawCommentCStr : "";
+    clang_disposeString(rawCommentCX);
+
+    CXString debriefCX = clang_Cursor_getBriefCommentText(cursor);
+    const char *debriefCStr = clang_getCString(debriefCX);
+    std::string debrief = debriefCStr ? debriefCStr : "";
+    clang_disposeString(debriefCX);
 
     Object object(currentFilePath_, objectName, objType, startLine, startColumn, endLine, endColumn, rawComment,
                   debrief, arguments, returnType, ObjectState::Unchanged);

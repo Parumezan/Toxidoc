@@ -50,6 +50,10 @@ int main(int ac, char **av) {
       cxxopts::value<std::vector<std::string>>()->default_value(".h,.hpp,.hh,.hxx,.ipp,.tpp,.inl"))(
       "e,exclude-dirs", "Directories to exclude (comma separated)",
       cxxopts::value<std::vector<std::string>>()->default_value("build,.git,third_party,external"))(
+      "b,blacklist", "Words to designate names to ignore (comma separated)",
+      cxxopts::value<std::vector<std::string>>()->default_value("Q_PROPERTY"))(
+      "t,types", "Blacklist of object types to document (comma separated)",
+      cxxopts::value<std::vector<std::string>>()->default_value(""))("type-list", "List of available object types")(
       "l,lite-verbose", "Lite verbose output mode", cxxopts::value<bool>()->default_value("false"))("h,help",
                                                                                                     "Print usage");
 
@@ -60,10 +64,17 @@ int main(int ac, char **av) {
     return 0;
   }
 
+  if (result.count("type-list")) {
+    std::cout << "Available object types to blacklist:" << std::endl;
+    for (const auto &[type, name] : ObjectTypeStringMap) { std::cout << " - " << name << std::endl; }
+    return 0;
+  }
+
   FilesManager filesManager(
       result.count("config") ? fs::path(result["config"].as<std::string>()) : fs::path(), result["no-save"].as<bool>(),
       result.count("source-paths") ? result["source-paths"].as<std::vector<std::string>>() : std::vector<std::string>{},
       result["header-extensions"].as<std::vector<std::string>>(), result["exclude-dirs"].as<std::vector<std::string>>(),
+      result["blacklist"].as<std::vector<std::string>>(), result["types"].as<std::vector<std::string>>(),
       result["recursive"].as<bool>());
 
   auto initResult = filesManager.init();
@@ -72,12 +83,13 @@ int main(int ac, char **av) {
     return 1;
   }
 
-  ObjectsManager objectsManager;
+  ObjectsManager objectsManager(filesManager.getWordsBlacklist(), filesManager.getTypesBlacklist());
 
   size_t processedFiles = 0;
   auto status = bk::ProgressBar(&processedFiles, {
                                                      .total = filesManager.getSourcePaths().size(),
                                                      .message = "Processing objects in files...",
+                                                     .style = bk::ProgressBarStyle::Rich,
                                                      .interval = 1.0,
                                                      .no_tty = true,
                                                  });

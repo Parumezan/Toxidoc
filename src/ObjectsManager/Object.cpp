@@ -129,46 +129,13 @@ auto Object::getObjectAsJSON() const -> json::json {
 }
 
 auto Object::getObjectTypeAsString() const -> std::string {
-  switch (type_) {
-    case ObjectType::Unknown: return "Unknown";
-    case ObjectType::Function: return "Function";
-    case ObjectType::Constructor: return "Constructor";
-    case ObjectType::Method: return "Method";
-    case ObjectType::Destructor: return "Destructor";
-    case ObjectType::FunctionTemplate: return "FunctionTemplate";
-    case ObjectType::Class: return "Class";
-    case ObjectType::Struct: return "Struct";
-    case ObjectType::Enum: return "Enum";
-    case ObjectType::Variable: return "Variable";
-    case ObjectType::Namespace: return "Namespace";
-    case ObjectType::Macro: return "Macro";
-    default: return "Unknown";
-  }
+  auto it = ObjectTypeStringMap.find(type_);
+  if (it != ObjectTypeStringMap.end()) return it->second;
+  return "Unknown";
 }
 
 auto Object::getObjectTypeFromString(const std::string &typeStr) -> ObjectType {
-  if (typeStr == "Function")
-    return ObjectType::Function;
-  else if (typeStr == "Constructor")
-    return ObjectType::Constructor;
-  else if (typeStr == "Method")
-    return ObjectType::Method;
-  else if (typeStr == "Destructor")
-    return ObjectType::Destructor;
-  else if (typeStr == "FunctionTemplate")
-    return ObjectType::FunctionTemplate;
-  else if (typeStr == "Class")
-    return ObjectType::Class;
-  else if (typeStr == "Struct")
-    return ObjectType::Struct;
-  else if (typeStr == "Enum")
-    return ObjectType::Enum;
-  else if (typeStr == "Variable")
-    return ObjectType::Variable;
-  else if (typeStr == "Namespace")
-    return ObjectType::Namespace;
-  else if (typeStr == "Macro")
-    return ObjectType::Macro;
-  else
-    return ObjectType::Unknown;
+  for (const auto &[type, name] : ObjectTypeStringMap)
+    if (name == typeStr) return type;
+  return ObjectType::Unknown;
 }

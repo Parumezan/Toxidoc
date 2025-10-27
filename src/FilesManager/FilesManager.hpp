@@ -33,11 +33,13 @@ class FilesManager {
    * @arg paths List of source paths to process
    * @arg defaultHeaderExtensions List of default header file extensions
    * @arg defaultExcludeDirs List of default directories to exclude
+   * @arg wordsBlacklist List of words to designate names to ignore
+   * @arg typesBlacklist List of object types to ignore
    * @arg recursive If true, directories will be searched recursively
    */
   FilesManager(fs::path configPath, bool noSave, std::vector<std::string> paths,
                std::vector<std::string> defaultHeaderExtensions, std::vector<std::string> defaultExcludeDirs,
-               bool recursive);
+               std::vector<std::string> wordsBlacklist, std::vector<std::string> typesBlacklist, bool recursive);
 
   /**
    * @brief Destructor for FilesManager
@@ -58,6 +60,16 @@ class FilesManager {
    * @brief Gets the list of saved objects from the configuration
    */
   auto getSavedObjects() -> std::vector<Object>;
+
+  /**
+   * @brief Gets the blacklist of words we want to ignore
+   */
+  auto getWordsBlacklist() const -> std::vector<std::string>;
+
+  /**
+   * @brief Gets the blacklist of object types we want to ignore
+   */
+  auto getTypesBlacklist() const -> std::vector<std::string>;
 
   /**
    * @brief Saves the current configuration to the config file
@@ -99,6 +111,8 @@ class FilesManager {
   fs::path configPath_;
   std::vector<std::string> excludeDirs_;
   std::vector<std::string> headerExtensions_;
+  std::vector<std::string> wordsBlacklist_;
+  std::vector<std::string> typesBlacklist_;
   std::vector<Object> objects_;
 };
 

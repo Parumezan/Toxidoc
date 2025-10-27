@@ -21,8 +21,14 @@ class ObjectsManager {
  public:
   /**
    * @brief Constructs an ObjectsManager instance
+   *
+   * @param blacklist List of words to ignore when processing objects
    */
-  ObjectsManager() = default;
+  ObjectsManager(std::vector<std::string> wordsBlacklist = {}, std::vector<std::string> typesBlacklist = {});
+
+  /**
+   * @brief Destructor for ObjectsManager
+   */
   ~ObjectsManager() = default;
 
   auto getObjectsList() const -> const std::vector<Object> &;
@@ -31,6 +37,9 @@ class ObjectsManager {
  private:
   auto visitor(CXCursor cursor, CXCursor parent, CXClientData clientData) -> CXChildVisitResult;
   auto setOverloadCounter() -> void;
+
+  std::vector<std::string> wordsBlacklist_;
+  std::vector<std::string> typesBlacklist_;
   std::vector<Object> objects_;
   fs::path currentFilePath_;
 };

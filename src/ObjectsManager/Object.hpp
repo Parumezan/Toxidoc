@@ -22,6 +22,21 @@ enum class ObjectType {
   Macro
 };
 
+const std::map<ObjectType, std::string> ObjectTypeStringMap = {
+    {ObjectType::Unknown, "Unknown"},
+    {ObjectType::Function, "Function"},
+    {ObjectType::Constructor, "Constructor"},
+    {ObjectType::Method, "Method"},
+    {ObjectType::Destructor, "Destructor"},
+    {ObjectType::FunctionTemplate, "FunctionTemplate"},
+    {ObjectType::Class, "Class"},
+    {ObjectType::Struct, "Struct"},
+    {ObjectType::Enum, "Enum"},
+    {ObjectType::Variable, "Variable"},
+    {ObjectType::Namespace, "Namespace"},
+    {ObjectType::Macro, "Macro"},
+};
+
 enum class ObjectState { Unchanged, Modified, Added, Removed };
 
 class Object {
