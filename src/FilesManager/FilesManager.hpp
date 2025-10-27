@@ -18,12 +18,41 @@ namespace fs = std::filesystem;
 namespace json = nlohmann;
 namespace bk = barkeep;
 
+/**
+ * @brief Manages source files and configuration for documentation generation.
+ *
+ * @class FilesManager
+ */
 class FilesManager {
  public:
+  /**
+   * @brief Constructs a FilesManager with the given parameters.
+   *
+   * @arg constructor
+   * @arg configPath Path to the configuration file.
+   * @arg noSave If true, the configuration will not be saved after initialization.
+   * @arg paths List of source paths to process.
+   * @arg defaultHeaderExtensions List of default header file extensions.
+   * @arg defaultExcludeDirs List of default directories to exclude.
+   * @arg recursive If true, directories will be searched recursively.
+   */
   FilesManager(fs::path configPath, bool noSave, std::vector<std::string> paths,
                std::vector<std::string> defaultHeaderExtensions, std::vector<std::string> defaultExcludeDirs,
                bool recursive);
+
+  /**
+   * @brief Destructor for FilesManager.
+   */
   ~FilesManager() = default;
+
+  /**
+   * @brief Initializes the FilesManager by loading configuration and collecting source files.
+   */
+  auto init() -> std::expected<void, std::string>;
+
+  /**
+   * @brief Gets the list of source paths.
+   */
   auto getSourcePaths() const -> std::vector<fs::path>;
   auto getSavedObjects() -> std::vector<Object>;
   auto saveConfig(std::vector<Object> objects = {}) -> std::expected<void, std::string>;

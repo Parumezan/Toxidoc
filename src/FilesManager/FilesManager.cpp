@@ -9,33 +9,38 @@ FilesManager::FilesManager(fs::path configPath, bool noSave, std::vector<std::st
       headerExtensions_(defaultHeaderExtensions),
       excludeDirs_(defaultExcludeDirs),
       objects_({}) {
-  bool exiting = false;
   for (const auto &pathStr : paths) sourcePaths_.push_back(fs::path(pathStr));
+}
+
+auto FilesManager::init() -> std::expected<void, std::string> {
+  bool tryConfig = false;
   if (!configPath_.empty()) {
+    tryConfig = true;
     auto loadResult = loadConfig();
-    if (loadResult) return;
+    if (loadResult) return {};
     spdlog::warn("Failed to load config: {}", loadResult.error());
     spdlog::info("Using provided parameters and defaults");
+    configPath_ = "toxiconf.json";
+    loadResult = loadConfig();
+    if (loadResult) return {};
+    spdlog::warn("Failed to load default config: {}", loadResult.error());
   }
-  configPath_ = "toxiconf.json";
+  if (sourcePaths_.empty() && !tryConfig) {
+    spdlog::warn("No source paths provided, trying to load from default config");
+    configPath_ = "toxiconf.json";
+    auto loadResult = loadConfig();
+    if (loadResult) return {};
+    spdlog::warn("Failed to load default config: {}", loadResult.error());
+  }
   if (sourcePaths_.empty()) {
-    spdlog::error("No source paths provided, trying to load from config");
-    exiting = true;
-    return;
+    spdlog::warn("No source paths associated, using current directory");
+    sourcePaths_.push_back(fs::current_path());
   }
-  auto loadResult = loadConfig();
-  if (loadResult) return;
-  if (exiting) return;
   auto collectResult = collectPathFiles(sourcePaths_);
-  if (!collectResult) {
-    spdlog::error("Failed to collect source files: {}", collectResult.error());
-    sourcePaths_.clear();
-    return;
-  }
+  if (!collectResult) return std::unexpected(collectResult.error());
   sourcePaths_ = collectResult.value();
-  if (noSave_) return;
-  auto saveResult = saveConfig();
-  if (!saveResult) spdlog::error("Failed to save config: {}", saveResult.error());
+  if (configPath_.empty()) configPath_ = "toxiconf.json";
+  return {};
 }
 
 auto FilesManager::getSourcePaths() const -> std::vector<fs::path> { return sourcePaths_; }
@@ -54,7 +59,8 @@ auto FilesManager::saveConfig(std::vector<Object> objects) -> std::expected<void
   configJson["source_paths"] = sourcePathsStr;
 
   std::vector<json::json> objectsJson;
-  for (const auto &obj : objects) { objectsJson.push_back(obj.getObjectAsJSON()); }
+  for (const auto &obj : objects)
+    if (obj.getState() != ObjectState::Removed) objectsJson.push_back(obj.getObjectAsJSON());
   configJson["objects"] = objectsJson;
 
   std::ofstream configFile(configPath_);
@@ -70,6 +76,7 @@ auto FilesManager::loadConfig() -> std::expected<void, std::string> {
   if (!configFile.is_open()) return std::unexpected("Failed to open config file");
   json::json configJson = json::json::parse(configFile, nullptr, false);
   if (configJson.is_discarded()) return std::unexpected("Failed to parse config file");
+  spdlog::info("Loaded config from {}", configPath_.string());
 
   if (configJson.contains("exclude_dirs") && configJson["exclude_dirs"].is_array()) {
     excludeDirs_.clear();
@@ -113,8 +120,8 @@ auto FilesManager::collectPathFiles(std::vector<fs::path> paths) -> std::expecte
   std::atomic<uintmax_t> filesCount = 0;
 
   auto status = bk::Status({
-      .message = "Collecting source files",
-      .style = bk::AnimationStyle::Bounce,
+      .message = "Collecting source files...",
+      .style = bk::AnimationStyle::Bar,
       .show = true,
   });
 

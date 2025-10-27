@@ -118,20 +118,21 @@ auto ObjectsManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clie
 
 auto ObjectsManager::setOverloadCounter() -> void {
   std::map<std::string, uintmax_t> overloadCounters;
+  for (const auto &obj : objects_) {
+    std::string key = obj.getObjectName();
+    overloadCounters[key] = 0;
+  }
+
   uintmax_t overload = 0;
   for (auto &obj : objects_) {
-    if (obj.getObjectTypeAsString() == "Function" || obj.getObjectTypeAsString() == "Method" ||
-        obj.getObjectTypeAsString() == "Constructor" || obj.getObjectTypeAsString() == "Destructor" ||
-        obj.getObjectTypeAsString() == "FunctionTemplate") {
-      std::string key = obj.getObjectName();
-      if (overloadCounters.find(key) != overloadCounters.end()) {
-        overloadCounters[key]++;
-        overload = overloadCounters[key];
-      } else {
-        overloadCounters[key] = 0;
-        overload = 0;
-      }
-      obj.setOverloadIndex(overload);
+    std::string key = obj.getObjectName();
+    if (overloadCounters.find(key) != overloadCounters.end()) {
+      overloadCounters[key]++;
+      overload = overloadCounters[key];
+    } else {
+      overloadCounters[key] = 0;
+      overload = 0;
     }
+    obj.setOverloadIndex(overload);
   }
 }

@@ -61,10 +61,10 @@ auto Object::updateObject(const Object &other) -> void {
   filePath_ = isModified(filePath_, other.filePath_, modified);
   name_ = isModified(name_, other.name_, modified);
   type_ = isModified(type_, other.type_, modified);
-  startLine_ = isModified(startLine_, other.startLine_, modified);
-  startColumn_ = isModified(startColumn_, other.startColumn_, modified);
-  endLine_ = isModified(endLine_, other.endLine_, modified);
-  endColumn_ = isModified(endColumn_, other.endColumn_, modified);
+  startLine_ = other.startLine_;
+  startColumn_ = other.startColumn_;
+  endLine_ = other.endLine_;
+  endColumn_ = other.endColumn_;
   rawComment_ = isModified(rawComment_, other.rawComment_, modified);
   debrief_ = isModified(debrief_, other.debrief_, modified);
   arguments_ = isModified(arguments_, other.arguments_, modified);

@@ -1,4 +1,5 @@
 #include <cxxopts.hpp>
+#include <iostream>
 
 #include "FilesManager/FilesManager.hpp"
 #include "ObjectsManager/ObjectsManager.hpp"
@@ -9,18 +10,23 @@ static auto processDocumentationStatus(const std::vector<Object> &objects, bool 
   for (auto &obj : objects) {
     if (obj.isValid()) continue;
     if (!obj.isValid() && obj.getState() != ObjectState::Removed) {
-      if (!verbose)
-        spdlog::warn("{} {} - Undocumented", obj.getObjectPathAsString(), obj.getStateAsString());
-      else
+      if (!verbose) {
+        spdlog::warn("{} {} {} {}", obj.getObjectPathAsString(), obj.getObjectTypeAsString(), obj.getObjectName(),
+                     obj.getStateAsString());
+      } else {
         std::cout << obj.getObjectPathAsString() << " " << obj.getObjectTypeAsString() << " " << obj.getObjectName()
-                  << " " << obj.getStateAsString() << std::endl;
+                  << std::endl;
+      }
       undocumentedCount++;
       continue;
     }
-    if (!verbose) spdlog::info("{} {}", obj.getObjectPathAsString(), obj.getStateAsString());
+    if (!verbose) {
+      spdlog::info("{} {}", obj.getObjectPathAsString(), obj.getObjectTypeAsString(), obj.getObjectName(),
+                   obj.getStateAsString());
+    }
   }
-  undocumentedCount > 0 ? spdlog::info("{}/{} objects are undocumented.", undocumentedCount, objects.size())
-                        : spdlog::info("All {} objects are documented.", objects.size());
+  undocumentedCount > 0 ? spdlog::info("{}/{} objects are undocumented", undocumentedCount, objects.size())
+                        : spdlog::info("All {} objects are documented", objects.size());
   return undocumentedCount > 0 ? 1 : 0;
 }
 
@@ -36,8 +42,8 @@ int main(int ac, char **av) {
       cxxopts::value<std::vector<std::string>>()->default_value(".h,.hpp,.hh,.hxx,.ipp,.tpp,.inl"))(
       "e,exclude-dirs", "Directories to exclude (comma separated)",
       cxxopts::value<std::vector<std::string>>()->default_value("build,.git,third_party,external"))(
-      "v,verbose", "Enable verbose logging to see detailed processing information",
-      cxxopts::value<bool>()->default_value("false"))("h,help", "Print usage");
+      "l,lite-verbose", "Lite verbose output mode", cxxopts::value<bool>()->default_value("false"))("h,help",
+                                                                                                    "Print usage");
 
   auto result = options.parse(ac, av);
 
@@ -52,16 +58,33 @@ int main(int ac, char **av) {
       result["header-extensions"].as<std::vector<std::string>>(), result["exclude-dirs"].as<std::vector<std::string>>(),
       result["recursive"].as<bool>());
 
+  auto initResult = filesManager.init();
+  if (!initResult) {
+    spdlog::error("Failed to initialize FilesManager: {}", initResult.error());
+    return 1;
+  }
+
   ObjectsManager objectsManager;
+
+  uintmax_t processedFiles = 0;
+  auto status = bk::ProgressBar(&processedFiles, {
+                                                     .total = filesManager.getSourcePaths().size(),
+                                                     .message = "Processing objects in files...",
+                                                     .interval = 1.0,
+                                                     .no_tty = true,
+                                                 });
 
   std::vector<fs::path> sourcePaths = filesManager.getSourcePaths();
   for (const auto &path : sourcePaths) {
+    processedFiles++;
     auto processResult = objectsManager.processHeaderFile(path);
     if (!processResult) {
       spdlog::error("Error processing file {}: {}", path.string(), processResult.error());
       continue;
     }
   }
+  status->done();
+
   const auto &parsedObjects = objectsManager.getObjectsList();
   const auto &savedObjects = filesManager.getSavedObjects();
 
@@ -72,12 +95,11 @@ int main(int ac, char **av) {
         spdlog::error("Failed to save config: {}", saveResult.error());
         return 1;
       }
+      spdlog::info("Saved {} objects to config", parsedObjects.size());
     }
-    spdlog::info("Saved {} objects to config, processing documentation status.", parsedObjects.size());
-    return processDocumentationStatus(parsedObjects, result["verbose"].as<bool>());
+    return processDocumentationStatus(parsedObjects, result["lite-verbose"].as<bool>());
   }
 
-  // TODO CHECK THIS LOGIC
   std::vector<Object> mergedObjects;
   for (const auto &savedObj : savedObjects) {
     bool found = false;
@@ -116,5 +138,5 @@ int main(int ac, char **av) {
       return 1;
     }
   }
-  return processDocumentationStatus(mergedObjects, result["verbose"].as<bool>());
+  return processDocumentationStatus(mergedObjects, result["lite-verbose"].as<bool>());
 }
