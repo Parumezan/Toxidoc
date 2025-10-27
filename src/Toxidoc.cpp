@@ -7,6 +7,8 @@
 static auto processDocumentationStatus(const std::vector<Object> &objects, bool verbose = false) -> int {
   uintmax_t undocumentedCount = 0;
   std::string statusReport;
+  size_t totalSize = objects.size();
+
   for (auto &obj : objects) {
     if (obj.isValid()) continue;
     if (!obj.isValid() && obj.getState() != ObjectState::Removed) {
@@ -21,12 +23,12 @@ static auto processDocumentationStatus(const std::vector<Object> &objects, bool 
       continue;
     }
     if (!verbose) {
-      spdlog::info("{} {}", obj.getObjectPathAsString(), obj.getObjectTypeAsString(), obj.getObjectName(),
+      spdlog::info("{} {} {} {}", obj.getObjectPathAsString(), obj.getObjectTypeAsString(), obj.getObjectName(),
                    obj.getStateAsString());
     }
   }
-  undocumentedCount > 0 ? spdlog::info("{}/{} objects are undocumented", undocumentedCount, objects.size())
-                        : spdlog::info("All {} objects are documented", objects.size());
+  undocumentedCount > 0 ? spdlog::info("{}/{} objects are undocumented", undocumentedCount, totalSize)
+                        : spdlog::info("All {} objects are documented", totalSize);
   return undocumentedCount > 0 ? 1 : 0;
 }
 

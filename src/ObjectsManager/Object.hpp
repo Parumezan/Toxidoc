@@ -28,7 +28,8 @@ class Object {
  public:
   Object(const fs::path &filePath, const std::string &objName, ObjectType type, uintmax_t startLine,
          uintmax_t startColumn, uintmax_t endLine, uintmax_t endColumn, const std::string &rawComment,
-         const std::string &debrief, const std::vector<std::string> &arguments, ObjectState state);
+         const std::string &debrief, const std::vector<std::string> &arguments, const std::string &returnType,
+         ObjectState state);
   Object(const json::json &j);
   ~Object() = default;
   auto operator==(const Object &other) const -> bool;
@@ -50,7 +51,7 @@ class Object {
   fs::path filePath_;
   std::string name_;
   ObjectType type_;
-  uintmax_t overloadIndex_;  // TODO
+  uintmax_t overloadIndex_;
   uintmax_t startLine_;
   uintmax_t startColumn_;
   uintmax_t endLine_;
@@ -58,6 +59,7 @@ class Object {
   std::string rawComment_;
   std::string debrief_;
   std::vector<std::string> arguments_;
+  std::string returnType_;
   ObjectState state_;
 };
 

@@ -109,8 +109,14 @@ auto ObjectsManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clie
       }
     }
 
+    CXType returnTypeCX = clang_getCursorResultType(cursor);
+    CXString returnTypeStrCX = clang_getTypeSpelling(returnTypeCX);
+    const char *returnTypeCStr = clang_getCString(returnTypeStrCX);
+    std::string returnType = returnTypeCStr ? returnTypeCStr : "";
+    clang_disposeString(returnTypeStrCX);
+
     Object object(currentFilePath_, objectName, objType, startLine, startColumn, endLine, endColumn, rawComment,
-                  debrief, arguments, ObjectState::Added);
+                  debrief, arguments, returnType, ObjectState::Unchanged);
     objects_.push_back(object);
   }
   return CXChildVisit_Recurse;

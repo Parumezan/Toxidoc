@@ -2,7 +2,7 @@
 
 Object::Object(const fs::path &filePath, const std::string &objName, ObjectType type, uintmax_t startLine,
                uintmax_t startColumn, uintmax_t endLine, uintmax_t endColumn, const std::string &rawComment,
-               const std::string &debrief, const std::vector<std::string> &arguments,
+               const std::string &debrief, const std::vector<std::string> &arguments, const std::string &returnType,
                ObjectState state = ObjectState::Unchanged)
     : filePath_(filePath),
       name_(objName),
@@ -14,6 +14,7 @@ Object::Object(const fs::path &filePath, const std::string &objName, ObjectType 
       rawComment_(rawComment),
       debrief_(debrief),
       arguments_(arguments),
+      returnType_(returnType),
       state_(state) {}
 
 Object::Object(const json::json &j) {
@@ -34,11 +35,12 @@ Object::Object(const json::json &j) {
     for (const auto &arg : j["arguments"])
       if (arg.is_string()) arguments_.push_back(arg.get<std::string>());
   }
+  if (j.contains("return_type") && j["return_type"].is_string()) returnType_ = j["return_type"].get<std::string>();
 }
 
 auto Object::operator==(const Object &other) const -> bool {
   return filePath_ == other.filePath_ && name_ == other.name_ && type_ == other.type_ &&
-         overloadIndex_ == other.overloadIndex_;
+         overloadIndex_ == other.overloadIndex_ && returnType_ == other.returnType_;
 }
 
 auto Object::isValid() const -> bool { return !debrief_.empty(); }
@@ -68,6 +70,7 @@ auto Object::updateObject(const Object &other) -> void {
   rawComment_ = isModified(rawComment_, other.rawComment_, modified);
   debrief_ = isModified(debrief_, other.debrief_, modified);
   arguments_ = isModified(arguments_, other.arguments_, modified);
+  returnType_ = isModified(returnType_, other.returnType_, modified);
   if (modified && state_ == ObjectState::Unchanged) state_ = ObjectState::Modified;
 }
 
@@ -94,6 +97,7 @@ auto Object::getObjectAsString() const -> std::string {
   result += "Overload Index: " + std::to_string(overloadIndex_) + "\n";
   for (size_t i = 0; i < arguments_.size(); ++i)
     result += "Argument " + std::to_string(i) + ": " + arguments_[i] + "\n";
+  result += "Return Type: " + returnType_ + "\n";
   result += "Raw Comment: " + rawComment_ + "\n";
   result += "Debrief: " + debrief_ + "\n";
   result += "State: " + getStateAsString() + "\n";
@@ -120,6 +124,7 @@ auto Object::getObjectAsJSON() const -> json::json {
   j["raw_comment"] = rawComment_;
   j["debrief"] = debrief_;
   j["arguments"] = arguments_;
+  j["return_type"] = returnType_;
   return j;
 }
 
