@@ -117,7 +117,7 @@ auto FilesManager::hasHeaderExtension(const fs::path &filePath) -> bool {
 
 auto FilesManager::collectPathFiles(std::vector<fs::path> paths) -> std::expected<std::vector<fs::path>, std::string> {
   std::vector<fs::path> collectedFiles;
-  std::atomic<uintmax_t> filesCount = 0;
+  std::atomic<size_t> filesCount = 0;
 
   auto status = bk::Status({
       .message = "Collecting source files...",

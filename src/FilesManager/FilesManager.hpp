@@ -67,9 +67,30 @@ class FilesManager {
   auto saveConfig(std::vector<Object> objects = {}) -> std::expected<void, std::string>;
 
  private:
+  /**
+   * @brief Loads the configuration from the config file
+   */
   auto loadConfig() -> std::expected<void, std::string>;
+
+  /**
+   * @brief Checks if a directory is in the exclude list
+   *
+   * @param dirPath Path to the directory to check
+   */
   auto isExcludedDir(const fs::path &dirPath) -> bool;
+
+  /**
+   * @brief Checks if a file has a header file extension
+   *
+   * @param filePath Path to the file to check
+   */
   auto hasHeaderExtension(const fs::path &filePath) -> bool;
+
+  /**
+   * @brief Collects all header files from the given paths
+   *
+   * @param paths List of paths to collect files from
+   */
   auto collectPathFiles(std::vector<fs::path> paths) -> std::expected<std::vector<fs::path>, std::string>;
 
   bool recursive_;

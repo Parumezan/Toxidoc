@@ -123,13 +123,13 @@ auto ObjectsManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clie
 }
 
 auto ObjectsManager::setOverloadCounter() -> void {
-  std::map<std::string, uintmax_t> overloadCounters;
+  std::map<std::string, size_t> overloadCounters;
   for (const auto &obj : objects_) {
     std::string key = obj.getObjectName();
     overloadCounters[key] = 0;
   }
 
-  uintmax_t overload = 0;
+  size_t overload = 0;
   for (auto &obj : objects_) {
     std::string key = obj.getObjectName();
     if (overloadCounters.find(key) != overloadCounters.end()) {

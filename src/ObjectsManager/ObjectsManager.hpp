@@ -12,8 +12,16 @@
 
 namespace fs = std::filesystem;
 
+/**
+ * @brief Manages a collection of Object instances by parsing header files
+ *
+ * @class ObjectsManager
+ */
 class ObjectsManager {
  public:
+  /**
+   * @brief Constructs an ObjectsManager instance
+   */
   ObjectsManager() = default;
   ~ObjectsManager() = default;
 

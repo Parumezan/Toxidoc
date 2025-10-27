@@ -4,30 +4,36 @@
 #include "FilesManager/FilesManager.hpp"
 #include "ObjectsManager/ObjectsManager.hpp"
 
-static auto processDocumentationStatus(const std::vector<Object> &objects, bool verbose = false) -> int {
-  uintmax_t undocumentedCount = 0;
+static auto processDocumentationStatus(const std::vector<Object> &objects, bool lite_verbose = false) -> int {
+  size_t undocumentedCount = 0;
   std::string statusReport;
-  size_t totalSize = objects.size();
+
+  size_t totalSize = 0;
+  for (const auto &obj : objects) {
+    if (obj.getState() == ObjectState::Removed) continue;
+    totalSize++;
+  }
 
   for (auto &obj : objects) {
-    if (obj.isValid()) continue;
+    if (obj.isValid() && lite_verbose) continue;
     if (!obj.isValid() && obj.getState() != ObjectState::Removed) {
-      if (!verbose) {
-        spdlog::warn("{} {} {} {}", obj.getObjectPathAsString(), obj.getObjectTypeAsString(), obj.getObjectName(),
-                     obj.getStateAsString());
-      } else {
+      if (lite_verbose) {
         std::cout << obj.getObjectPathAsString() << " " << obj.getObjectTypeAsString() << " " << obj.getObjectName()
                   << std::endl;
+      } else {
+        spdlog::warn("{} {} {} {}", obj.getObjectPathAsString(), obj.getObjectTypeAsString(), obj.getObjectName(),
+                     obj.getStateAsString());
       }
       undocumentedCount++;
       continue;
     }
-    if (!verbose) {
+    if (!lite_verbose) {
       spdlog::info("{} {} {} {}", obj.getObjectPathAsString(), obj.getObjectTypeAsString(), obj.getObjectName(),
                    obj.getStateAsString());
     }
   }
-  undocumentedCount > 0 ? spdlog::info("{}/{} objects are undocumented", undocumentedCount, totalSize)
+  undocumentedCount > 0 ? spdlog::info("{}/{} objects are documented, {} undocumented left",
+                                       totalSize - undocumentedCount, totalSize, undocumentedCount)
                         : spdlog::info("All {} objects are documented", totalSize);
   return undocumentedCount > 0 ? 1 : 0;
 }
@@ -68,7 +74,7 @@ int main(int ac, char **av) {
 
   ObjectsManager objectsManager;
 
-  uintmax_t processedFiles = 0;
+  size_t processedFiles = 0;
   auto status = bk::ProgressBar(&processedFiles, {
                                                      .total = filesManager.getSourcePaths().size(),
                                                      .message = "Processing objects in files...",

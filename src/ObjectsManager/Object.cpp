@@ -1,7 +1,7 @@
 #include "Object.hpp"
 
-Object::Object(const fs::path &filePath, const std::string &objName, ObjectType type, uintmax_t startLine,
-               uintmax_t startColumn, uintmax_t endLine, uintmax_t endColumn, const std::string &rawComment,
+Object::Object(const fs::path &filePath, const std::string &objName, ObjectType type, size_t startLine,
+               size_t startColumn, size_t endLine, size_t endColumn, const std::string &rawComment,
                const std::string &debrief, const std::vector<std::string> &arguments, const std::string &returnType,
                ObjectState state = ObjectState::Unchanged)
     : filePath_(filePath),
@@ -22,12 +22,12 @@ Object::Object(const json::json &j) {
   if (j.contains("name") && j["name"].is_string()) name_ = j["name"].get<std::string>();
   if (j.contains("type") && j["type"].is_string()) type_ = getObjectTypeFromString(j["type"].get<std::string>());
   if (j.contains("overload_index") && j["overload_index"].is_number_unsigned())
-    overloadIndex_ = j["overload_index"].get<uintmax_t>();
-  if (j.contains("start_line") && j["start_line"].is_number_unsigned()) startLine_ = j["start_line"].get<uintmax_t>();
+    overloadIndex_ = j["overload_index"].get<size_t>();
+  if (j.contains("start_line") && j["start_line"].is_number_unsigned()) startLine_ = j["start_line"].get<size_t>();
   if (j.contains("start_column") && j["start_column"].is_number_unsigned())
-    startColumn_ = j["start_column"].get<uintmax_t>();
-  if (j.contains("end_line") && j["end_line"].is_number_unsigned()) endLine_ = j["end_line"].get<uintmax_t>();
-  if (j.contains("end_column") && j["end_column"].is_number_unsigned()) endColumn_ = j["end_column"].get<uintmax_t>();
+    startColumn_ = j["start_column"].get<size_t>();
+  if (j.contains("end_line") && j["end_line"].is_number_unsigned()) endLine_ = j["end_line"].get<size_t>();
+  if (j.contains("end_column") && j["end_column"].is_number_unsigned()) endColumn_ = j["end_column"].get<size_t>();
   if (j.contains("raw_comment") && j["raw_comment"].is_string()) rawComment_ = j["raw_comment"].get<std::string>();
   if (j.contains("debrief") && j["debrief"].is_string()) debrief_ = j["debrief"].get<std::string>();
   if (j.contains("arguments") && j["arguments"].is_array()) {
@@ -47,7 +47,7 @@ auto Object::isValid() const -> bool { return !debrief_.empty(); }
 
 auto Object::setState(ObjectState state) -> void { state_ = state; }
 
-auto Object::setOverloadIndex(uintmax_t index) -> void { overloadIndex_ = index; }
+auto Object::setOverloadIndex(size_t index) -> void { overloadIndex_ = index; }
 
 template <typename T>
 static T isModified(const T &a, const T &b, bool &modifiedFlag) {
