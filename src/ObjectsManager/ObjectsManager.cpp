@@ -36,9 +36,10 @@ auto ObjectsManager::processHeaderFile(const fs::path &filePath) -> std::expecte
   return {};
 }
 
-auto ObjectsManager::generateDocumentation() -> std::expected<void, std::string> {
+auto ObjectsManager::generateDocumentation() -> void {
   std::map<std::string, std::vector<Object>> docsByFile;
   for (const auto &obj : objects_) docsByFile[obj.getObjectPath().string()].push_back(obj);
+  size_t objectsProcessed = 0;
   for (const auto &[filePath, objs] : docsByFile) {
     spdlog::info("Processing file: {}", filePath);
 
@@ -74,13 +75,14 @@ auto ObjectsManager::generateDocumentation() -> std::expected<void, std::string>
           translationUnit, clang_getFile(translationUnit, filePath.c_str()), insertLine, columnOffset);
       clang_CXRewriter_insertTextBefore(rewriter, insertLocation, docString.c_str());
       clang_CXRewriter_overwriteChangedFiles(rewriter);
+      objectsProcessed++;
     }
 
     clang_CXRewriter_dispose(rewriter);
     clang_disposeTranslationUnit(translationUnit);
     clang_disposeIndex(index);
   }
-  return {};
+  spdlog::info("Total objects processed: {}", objectsProcessed);
 }
 
 auto ObjectsManager::getDocForObject(const Object &obj, size_t columnOffset) -> std::string {

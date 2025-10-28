@@ -37,13 +37,56 @@ class ObjectsManager {
    */
   ~ObjectsManager() = default;
 
+  /**
+   * @brief returns the list of managed objects
+   *
+   * @return int
+   */
   auto getObjectsList() const -> const std::vector<Object> &;
+
+  /**
+   * @brief Processes a header file to extract objects
+   *
+   * @arg filePath
+   *
+   * @return std::expected<void, std::string>
+   */
   auto processHeaderFile(const fs::path &filePath) -> std::expected<void, std::string>;
-  auto generateDocumentation() -> std::expected<void, std::string>;
+
+  /**
+   * @brief Generates documentation for the managed objects
+   *
+   * @return void
+   */
+  auto generateDocumentation() -> void;
 
  private:
+  /**
+   * @brief creates documentation string for an object
+   *
+   * @arg obj
+   * @arg columnOffset
+   *
+   * @return std::string
+   */
   auto getDocForObject(const Object &obj, size_t columnOffset) -> std::string;
+
+  /**
+   * @brief Clang visitor function to traverse nodes
+   *
+   * @arg cursor
+   * @arg parent
+   * @arg clientData
+   *
+   * @return CXChildVisitResult
+   */
   auto visitor(CXCursor cursor, CXCursor parent, CXClientData clientData) -> CXChildVisitResult;
+
+  /**
+   * @brief Sets overload counters for objects with the same name
+   *
+   * @return void
+   */
   auto setOverloadCounter() -> void;
 
   std::vector<std::string> wordsBlacklist_;

@@ -4,6 +4,11 @@
 #include <chrono>
 #include <iostream>
 
+/**
+ * @brief Cleans up the progress bar from the console because barkeep put a \n at the end
+ *
+ * @return void
+ */
 auto cleanupProgressBar() -> void {
 #if defined(_WIN32)
   std::cout << "\r";
@@ -12,6 +17,13 @@ auto cleanupProgressBar() -> void {
 #endif
 }
 
+/**
+ * @brief returns a readable time string from a time point
+ *
+ * @arg timePoint
+ *
+ * @return std::string
+ */
 auto getReadableTimeString(std::chrono::_V2::system_clock::time_point timePoint) -> std::string {
   std::time_t newTimePoint = std::chrono::system_clock::to_time_t(timePoint);
   std::tm buf;
