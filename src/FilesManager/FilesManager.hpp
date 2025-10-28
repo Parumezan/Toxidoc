@@ -72,6 +72,11 @@ class FilesManager {
   auto getTypesBlacklist() const -> std::vector<std::string>;
 
   /**
+   * @brief Gets the last save time of the configuration
+   */
+  auto getLastSaveTime() const -> std::chrono::system_clock::time_point;
+
+  /**
    * @brief Saves the current configuration to the config file
    *
    * @param objects List of objects to save
@@ -114,6 +119,7 @@ class FilesManager {
   std::vector<std::string> wordsBlacklist_;
   std::vector<std::string> typesBlacklist_;
   std::vector<Object> objects_;
+  std::chrono::system_clock::time_point lastSaveTime_;
 };
 
 #endif /* !FILESMANAGER_HPP_ */

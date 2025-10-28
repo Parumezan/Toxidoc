@@ -54,6 +54,8 @@ auto FilesManager::getWordsBlacklist() const -> std::vector<std::string> { retur
 
 auto FilesManager::getTypesBlacklist() const -> std::vector<std::string> { return typesBlacklist_; }
 
+auto FilesManager::getLastSaveTime() const -> std::chrono::system_clock::time_point { return lastSaveTime_; }
+
 auto FilesManager::saveConfig(std::vector<Object> objects) -> std::expected<void, std::string> {
   if (configPath_.empty()) return std::unexpected("Config path is empty");
 
@@ -62,6 +64,9 @@ auto FilesManager::saveConfig(std::vector<Object> objects) -> std::expected<void
   configJson["header_extensions"] = headerExtensions_;
   configJson["words_blacklist"] = wordsBlacklist_;
   configJson["types_blacklist"] = typesBlacklist_;
+
+  configJson["last_saved"] =
+      std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
   std::vector<std::string> sourcePathsStr;
   for (const auto &path : sourcePaths_) sourcePathsStr.push_back(path.string());
@@ -85,14 +90,19 @@ auto FilesManager::loadConfig() -> std::expected<void, std::string> {
   if (!configFile.is_open()) return std::unexpected("Failed to open config file");
   json::json configJson = json::json::parse(configFile, nullptr, false);
   if (configJson.is_discarded()) return std::unexpected("Failed to parse config file");
-  spdlog::info("Loaded config from {}", configPath_.string());
+  spdlog::info("Loading config from {}", configPath_.string());
 
+  if (configJson.contains("last_saved") && configJson["last_saved"].is_number_unsigned()) {
+    auto lastSavedSeconds = configJson["last_saved"].get<uint64_t>();
+    lastSaveTime_ = std::chrono::system_clock::time_point(std::chrono::seconds(lastSavedSeconds));
+  }
   if (configJson.contains("exclude_dirs") && configJson["exclude_dirs"].is_array()) {
     excludeDirs_.clear();
     for (const auto &dir : configJson["exclude_dirs"])
       if (dir.is_string()) excludeDirs_.push_back(dir.get<std::string>());
   }
-  if (configJson.contains("header_extensions") && configJson["header_extensions"].is_array()) {
+  if (configJson.contains("header_extensions") && configJson["header_extensions"].is_array() &&
+      headerExtensions_.empty()) {
     headerExtensions_.clear();
     for (const auto &ext : configJson["header_extensions"])
       if (ext.is_string()) headerExtensions_.push_back(ext.get<std::string>());
@@ -103,9 +113,9 @@ auto FilesManager::loadConfig() -> std::expected<void, std::string> {
       if (word.is_string()) wordsBlacklist_.push_back(word.get<std::string>());
   }
   if (configJson.contains("types_blacklist") && configJson["types_blacklist"].is_array()) {
-    wordsBlacklist_.clear();
-    for (const auto &word : configJson["types_blacklist"])
-      if (word.is_string()) wordsBlacklist_.push_back(word.get<std::string>());
+    typesBlacklist_.clear();
+    for (const auto &type : configJson["types_blacklist"])
+      if (type.is_string()) typesBlacklist_.push_back(type.get<std::string>());
   }
   if (configJson.contains("source_paths") && configJson["source_paths"].is_array()) {
     sourcePaths_.clear();
@@ -120,7 +130,6 @@ auto FilesManager::loadConfig() -> std::expected<void, std::string> {
       if (obj.is_object()) objects_.emplace_back(Object(obj));
     if (!objects_.empty()) spdlog::info("Loaded {} objects from config", objects_.size());
   }
-
   return {};
 }
 

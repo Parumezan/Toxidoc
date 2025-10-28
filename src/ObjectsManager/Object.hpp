@@ -55,8 +55,10 @@ class Object {
   auto getStateAsString() const -> std::string;
   auto getObjectName() const -> std::string;
   auto getObjectAsString() const -> std::string;
+  auto getObjectPath() const -> fs::path;
   auto getObjectPathAsString() const -> std::string;
   auto getObjectAsJSON() const -> json::json;
+  auto getObjectType() const -> ObjectType;
   auto getObjectTypeAsString() const -> std::string;
 
  private:

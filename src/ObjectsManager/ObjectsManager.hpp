@@ -2,15 +2,21 @@
 #define OBJECTSMANAGER_HPP_
 
 #include <clang-c/Index.h>
+#include <clang-c/Rewrite.h>
 #include <spdlog/spdlog.h>
 
 #include <expected>
 #include <filesystem>
+#include <fstream>
 #include <vector>
 
 #include "Object.hpp"
 
 namespace fs = std::filesystem;
+
+const std::map<ObjectType, std::string> ObjectTypeStringDocMap = {
+    {ObjectType::Class, "@class"},
+};
 
 /**
  * @brief Manages a collection of Object instances by parsing header files
@@ -33,8 +39,10 @@ class ObjectsManager {
 
   auto getObjectsList() const -> const std::vector<Object> &;
   auto processHeaderFile(const fs::path &filePath) -> std::expected<void, std::string>;
+  auto generateDocumentation() -> std::expected<void, std::string>;
 
  private:
+  auto getDocForObject(const Object &obj, size_t columnOffset) -> std::string;
   auto visitor(CXCursor cursor, CXCursor parent, CXClientData clientData) -> CXChildVisitResult;
   auto setOverloadCounter() -> void;
 

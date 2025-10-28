@@ -43,7 +43,7 @@ auto Object::operator==(const Object &other) const -> bool {
          overloadIndex_ == other.overloadIndex_ && returnType_ == other.returnType_;
 }
 
-auto Object::isValid() const -> bool { return !debrief_.empty(); }
+auto Object::isValid() const -> bool { return debrief_.length() > 0; }
 
 auto Object::setState(ObjectState state) -> void { state_ = state; }
 
@@ -111,6 +111,8 @@ auto Object::getObjectPathAsString() const -> std::string {
   return result;
 }
 
+auto Object::getObjectPath() const -> fs::path { return filePath_; }
+
 auto Object::getObjectAsJSON() const -> json::json {
   json::json j;
   j["file_path"] = filePath_.string();
@@ -127,6 +129,8 @@ auto Object::getObjectAsJSON() const -> json::json {
   j["return_type"] = returnType_;
   return j;
 }
+
+auto Object::getObjectType() const -> ObjectType { return type_; }
 
 auto Object::getObjectTypeAsString() const -> std::string {
   auto it = ObjectTypeStringMap.find(type_);

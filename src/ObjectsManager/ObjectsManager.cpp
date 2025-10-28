@@ -36,6 +36,84 @@ auto ObjectsManager::processHeaderFile(const fs::path &filePath) -> std::expecte
   return {};
 }
 
+auto ObjectsManager::generateDocumentation() -> std::expected<void, std::string> {
+  std::map<std::string, std::vector<Object>> docsByFile;
+  for (const auto &obj : objects_) docsByFile[obj.getObjectPath().string()].push_back(obj);
+  for (const auto &[filePath, objs] : docsByFile) {
+    spdlog::info("Processing file: {}", filePath);
+
+    CXIndex index = clang_createIndex(0, 0);
+    if (!index) {
+      spdlog::error("Failed to create Clang index for file: {}", filePath);
+      continue;
+    }
+    const char *args[] = {"-std=c++23", "-I."};
+    CXTranslationUnit translationUnit = clang_parseTranslationUnit(
+        index, filePath.c_str(), args, sizeof(args) / sizeof(args[0]), nullptr, 0, CXTranslationUnit_None);
+    if (!translationUnit) {
+      spdlog::error("Failed to parse translation unit for file: {}", filePath);
+      clang_disposeIndex(index);
+      continue;
+    }
+    CXRewriter rewriter = clang_CXRewriter_create(translationUnit);
+    if (!rewriter) {
+      spdlog::error("Failed to create Clang rewriter for file: {}", filePath);
+      clang_disposeTranslationUnit(translationUnit);
+      clang_disposeIndex(index);
+      continue;
+    }
+
+    for (const auto &obj : objs) {
+      json::json objJson = obj.getObjectAsJSON();
+      if (obj.isValid() || !objJson["raw_comment"].get<std::string>().empty()) continue;
+      size_t insertLine = objJson["start_line"].get<size_t>();
+      size_t columnOffset = objJson["start_column"].get<size_t>();
+      std::string docString = getDocForObject(obj, columnOffset);
+
+      CXSourceLocation insertLocation = clang_getLocation(
+          translationUnit, clang_getFile(translationUnit, filePath.c_str()), insertLine, columnOffset);
+      clang_CXRewriter_insertTextBefore(rewriter, insertLocation, docString.c_str());
+      clang_CXRewriter_overwriteChangedFiles(rewriter);
+    }
+
+    clang_CXRewriter_dispose(rewriter);
+    clang_disposeTranslationUnit(translationUnit);
+    clang_disposeIndex(index);
+  }
+  return {};
+}
+
+auto ObjectsManager::getDocForObject(const Object &obj, size_t columnOffset) -> std::string {
+  json::json objJson = obj.getObjectAsJSON();
+  std::string doc = "\n";
+
+  auto idt = [columnOffset]() { return std::string(columnOffset - 1, ' '); };
+  doc += idt() + "/**\n";
+  doc += idt() + " * @brief\n";
+
+  bool hasType = false;
+  for (const auto &[type, docTag] : ObjectTypeStringDocMap) {
+    if (obj.getObjectType() == type) {
+      hasType = true;
+      doc += idt() + " *\n";
+      doc += idt() + " * " + docTag + " " + obj.getObjectName() + "\n";
+      break;
+    }
+  }
+  if (objJson.contains("arguments") && !objJson["arguments"].empty()) {
+    doc += idt() + " *\n";
+    for (const auto &arg : objJson["arguments"]) doc += idt() + " * @arg " + arg.get<std::string>() + "\n";
+  }
+  if (objJson.contains("return_type") && !objJson["return_type"].get<std::string>().empty()) {
+    doc += idt() + " *\n";
+    if (!objJson["return_type"].get<std::string>().empty())
+      doc += idt() + " * @return " + objJson["return_type"].get<std::string>() + "\n";
+  }
+  doc += idt() + " */\n";
+  doc += idt();
+  return doc;
+}
+
 auto ObjectsManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clientData) -> CXChildVisitResult {
   CXSourceLocation loc = clang_getCursorLocation(cursor);
   if (!clang_Location_isFromMainFile(loc)) return CXChildVisit_Continue;
@@ -75,8 +153,7 @@ auto ObjectsManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clie
   }
 
   for (const auto &typeStr : typesBlacklist_)
-    for (const auto &[type, name] : ObjectTypeStringMap)
-      if (name == typeStr && type == objType) return CXChildVisit_Continue;
+    if (ObjectTypeStringMap.at(objType) == typeStr) return CXChildVisit_Continue;
 
   if (objType != ObjectType::Unknown) {
     CXSourceRange sourceRange = clang_getCursorExtent(cursor);

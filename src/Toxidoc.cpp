@@ -3,6 +3,7 @@
 
 #include "FilesManager/FilesManager.hpp"
 #include "ObjectsManager/ObjectsManager.hpp"
+#include "Utils.hpp"
 
 static auto processDocumentationStatus(const std::vector<Object> &objects, bool lite_verbose = false) -> int {
   size_t undocumentedCount = 0;
@@ -41,11 +42,13 @@ static auto processDocumentationStatus(const std::vector<Object> &objects, bool 
 int main(int ac, char **av) {
   cxxopts::Options options("Toxidoc", "C++ Documentation Manager");
 
-  options.add_options()("c,config", "Path to config file. If you provide this option, it will erase next parameters.",
-                        cxxopts::value<std::string>())("n,no-save", "Do not save config file after initialization",
-                                                       cxxopts::value<bool>()->default_value("false"))(
+  options.add_options()("c,config", "Path to config file", cxxopts::value<std::string>())(
+      "n,no-save", "Do not save config file after initialization", cxxopts::value<bool>()->default_value("false"))(
       "s,source-paths", "Source paths (comma separated)", cxxopts::value<std::vector<std::string>>())(
       "r,recursive", "Recursively search directories", cxxopts::value<bool>()->default_value("true"))(
+      "g,generate", "Generate beginning documentation blocks for undocumented objects",
+      cxxopts::value<bool>()->default_value("false"))(
+      "o,get-object", "Shows objects whose name matches the argument you provide", cxxopts::value<std::string>())(
       "x,header-extensions", "Header file extensions (comma separated)",
       cxxopts::value<std::vector<std::string>>()->default_value(".h,.hpp,.hh,.hxx,.ipp,.tpp,.inl"))(
       "e,exclude-dirs", "Directories to exclude (comma separated)",
@@ -54,10 +57,16 @@ int main(int ac, char **av) {
       cxxopts::value<std::vector<std::string>>()->default_value("Q_PROPERTY"))(
       "t,types", "Blacklist of object types to document (comma separated)",
       cxxopts::value<std::vector<std::string>>()->default_value(""))("type-list", "List of available object types")(
-      "l,lite-verbose", "Lite verbose output mode", cxxopts::value<bool>()->default_value("false"))("h,help",
-                                                                                                    "Print usage");
+      "l,lite-verbose", "Lite verbose output mode", cxxopts::value<bool>()->default_value("false"))(
+      "last-update", "Show the last update time of the documentation", cxxopts::value<bool>())("h,help", "Print usage");
 
-  auto result = options.parse(ac, av);
+  cxxopts::ParseResult result;
+  try {
+    result = options.parse(ac, av);
+  } catch (const std::exception &e) {
+    std::cerr << "Error parsing options: " << e.what() << std::endl;
+    return 1;
+  }
 
   if (result.count("help")) {
     std::cout << options.help() << std::endl;
@@ -85,6 +94,7 @@ int main(int ac, char **av) {
 
   ObjectsManager objectsManager(filesManager.getWordsBlacklist(), filesManager.getTypesBlacklist());
 
+  spdlog::info("Processing {} source files...", filesManager.getSourcePaths().size());
   size_t processedFiles = 0;
   auto status = bk::ProgressBar(&processedFiles, {
                                                      .total = filesManager.getSourcePaths().size(),
@@ -104,9 +114,32 @@ int main(int ac, char **av) {
     }
   }
   status->done();
+  cleanupProgressBar();
+
+  auto lastUpdateTime = filesManager.getLastSaveTime();
+  if (lastUpdateTime == std::chrono::system_clock::time_point{}) lastUpdateTime = std::chrono::system_clock::now();
+  spdlog::info("Last documentation update: {}", getReadableTimeString(lastUpdateTime));
 
   const auto &parsedObjects = objectsManager.getObjectsList();
   const auto &savedObjects = filesManager.getSavedObjects();
+
+  if (result.count("get-object")) {
+    const std::string &objName = result["get-object"].as<std::string>();
+    size_t foundCount = 0;
+    for (const auto &obj : parsedObjects) {
+      if (obj.getObjectName().contains(objName)) {
+        foundCount++;
+        std::cout << obj.getObjectAsString() << std::endl;
+      }
+    }
+    spdlog::info("Found {} objects matching '{}'", foundCount, objName);
+    return 0;
+  }
+
+  if (result["generate"].as<bool>()) {
+    objectsManager.generateDocumentation();
+    return 0;
+  }
 
   if (savedObjects.empty()) {
     if (!result["no-save"].as<bool>()) {
