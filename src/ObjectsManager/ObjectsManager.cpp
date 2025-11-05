@@ -40,7 +40,7 @@ auto ObjectsManager::processHeaderFile(const fs::path &filePath) -> std::expecte
                                                                  args.size(), nullptr, 0, CXTranslationUnit_None);
   if (!translationUnit) {
     clang_disposeIndex(index);
-    return std::unexpected("Failed to parse translation unit for file: " + filePath.string());
+    return std::unexpected("Failed to parse translation unit");
   }
 
   CXCursor rootCursor = clang_getTranslationUnitCursor(translationUnit);

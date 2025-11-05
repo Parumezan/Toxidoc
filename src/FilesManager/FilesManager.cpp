@@ -43,6 +43,8 @@ auto FilesManager::init() -> std::expected<void, std::string> {
   auto collectResult = collectPathFiles(sourcePaths_);
   if (!collectResult) return std::unexpected(collectResult.error());
   sourcePaths_ = collectResult.value();
+  if (sourcePaths_.empty())
+    return std::unexpected("No source files found in the provided paths. Please check your paths and try again.");
   if (configPath_.empty()) configPath_ = "toxiconf.json";
   return {};
 }
