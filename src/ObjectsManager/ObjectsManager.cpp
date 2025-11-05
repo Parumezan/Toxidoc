@@ -36,11 +36,20 @@ auto ObjectsManager::processHeaderFile(const fs::path &filePath) -> std::expecte
   }
   for (const auto &arg : argsVec) args.push_back(arg.c_str());
 
-  CXTranslationUnit translationUnit = clang_parseTranslationUnit(index, filePath.string().c_str(), args.data(),
-                                                                 args.size(), nullptr, 0, CXTranslationUnit_None);
-  if (!translationUnit) {
+  CXTranslationUnit translationUnit = nullptr;
+  CXErrorCode error = clang_parseTranslationUnit2(index, filePath.c_str(), args.data(), static_cast<int>(args.size()),
+                                                  nullptr, 0, CXTranslationUnit_None, &translationUnit);
+  if (!translationUnit || error != CXError_Success) {
     clang_disposeIndex(index);
-    return std::unexpected("Failed to parse translation unit");
+    std::string errorMsg;
+    switch (error) {
+      case CXError_Failure: errorMsg = "Failure"; break;
+      case CXError_Crashed: errorMsg = "Crashed"; break;
+      case CXError_InvalidArguments: errorMsg = "Invalid Arguments"; break;
+      case CXError_ASTReadError: errorMsg = "AST Read Error"; break;
+      default: errorMsg = "Unknown Error"; break;
+    }
+    return std::unexpected("Failed to parse translation unit, " + errorMsg);
   }
 
   CXCursor rootCursor = clang_getTranslationUnitCursor(translationUnit);
