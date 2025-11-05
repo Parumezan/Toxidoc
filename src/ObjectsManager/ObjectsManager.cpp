@@ -2,8 +2,17 @@
 
 #include <iostream>
 
-ObjectsManager::ObjectsManager(std::vector<std::string> wordsBlacklist, std::vector<std::string> typesBlacklist)
-    : objects_({}), wordsBlacklist_(wordsBlacklist), typesBlacklist_(typesBlacklist) {}
+// "-include",
+// "/home/pibe/Projects/Toxidoc/mods/clang_qt_override.h",
+
+ObjectsManager::ObjectsManager(std::vector<std::string> wordsBlacklist, std::vector<std::string> typesBlacklist,
+                               fs::path modPath)
+    : objects_({}),
+      wordsBlacklist_(wordsBlacklist),
+      typesBlacklist_(typesBlacklist),
+      currentFilePath_(""),
+      modPath_(modPath),
+      moduleType_(ModuleType::None) {}
 
 auto ObjectsManager::getObjectsList() const -> const std::vector<Object> & { return objects_; }
 
@@ -11,9 +20,24 @@ auto ObjectsManager::processHeaderFile(const fs::path &filePath) -> std::expecte
   CXIndex index = clang_createIndex(0, 0);
   if (!index) { return std::unexpected("Failed to create Clang index"); }
 
-  const char *args[] = {"-std=c++23", "-I."};
-  CXTranslationUnit translationUnit = clang_parseTranslationUnit(
-      index, filePath.string().c_str(), args, sizeof(args) / sizeof(args[0]), nullptr, 0, CXTranslationUnit_None);
+  std::vector<std::string> argsVec = {"-std=c++23", "-I."};
+  std::vector<const char *> args;
+  std::string modPathStr;
+  if (!modPath_.empty() && fs::exists(modPath_)) {
+    for (const auto &[modType, modName] : ModulesList) {
+      if (modPath_.filename().string() == modName) {
+        moduleType_ = modType;
+        argsVec.push_back("-include");
+        modPathStr = modPath_.string();
+        argsVec.push_back(modPathStr);
+        break;
+      }
+    }
+  }
+  for (const auto &arg : argsVec) args.push_back(arg.c_str());
+
+  CXTranslationUnit translationUnit = clang_parseTranslationUnit(index, filePath.string().c_str(), args.data(),
+                                                                 args.size(), nullptr, 0, CXTranslationUnit_None);
   if (!translationUnit) {
     clang_disposeIndex(index);
     return std::unexpected("Failed to parse translation unit for file: " + filePath.string());
@@ -139,19 +163,50 @@ auto ObjectsManager::visitor(CXCursor cursor, CXCursor parent, CXClientData clie
   CXCursorKind kind = clang_getCursorKind(cursor);
   ObjectType objType = ObjectType::Unknown;
 
-  switch (kind) {
-    case CXCursor_FunctionDecl: objType = ObjectType::Function; break;
-    case CXCursor_CXXMethod: objType = ObjectType::Method; break;
-    case CXCursor_Constructor: objType = ObjectType::Constructor; break;
-    case CXCursor_Destructor: objType = ObjectType::Destructor; break;
-    case CXCursor_FunctionTemplate: objType = ObjectType::FunctionTemplate; break;
-    case CXCursor_ClassDecl: objType = ObjectType::Class; break;
-    case CXCursor_StructDecl: objType = ObjectType::Struct; break;
-    case CXCursor_EnumDecl: objType = ObjectType::Enum; break;
-    case CXCursor_VarDecl: objType = ObjectType::Variable; break;
-    case CXCursor_Namespace: objType = ObjectType::Namespace; break;
-    case CXCursor_MacroDefinition: objType = ObjectType::Macro; break;
-    default: objType = ObjectType::Unknown; break;
+  if (moduleType_ == ModuleType::QtOverride || kind == CXCursor_CXXMethod || kind == CXCursor_FunctionDecl) {
+    if (clang_Cursor_hasAttrs(cursor)) {
+      clang_visitChildren(
+          cursor,
+          [](CXCursor child, CXCursor /*parent*/, CXClientData data) {
+            if (clang_getCursorKind(child) == CXCursor_AnnotateAttr) {
+              CXString annotation = clang_getCursorSpelling(child);
+              const char *annotationStr = clang_getCString(annotation);
+              std::string annotationString = annotationStr ? annotationStr : "";
+
+              if (annotationStr) {
+                ObjectType *objTypePtr = static_cast<ObjectType *>(data);
+                std::string annot(annotationStr);
+                if (annot == "qt_invokable") { *objTypePtr = ObjectType::Method; }
+                // else if (annot == "qt_signal") {
+                //   *objTypePtr = ObjectType::Unknown;
+                // } else if (annot == "qt_slot") {
+                //   *objTypePtr = ObjectType::Unknown;
+                // }
+              }
+
+              clang_disposeString(annotation);
+            }
+            return CXChildVisit_Continue;
+          },
+          &objType);
+    }
+  }
+
+  if (objType == ObjectType::Unknown) {
+    switch (kind) {
+      case CXCursor_FunctionDecl: objType = ObjectType::Function; break;
+      case CXCursor_CXXMethod: objType = ObjectType::Method; break;
+      case CXCursor_Constructor: objType = ObjectType::Constructor; break;
+      case CXCursor_Destructor: objType = ObjectType::Destructor; break;
+      case CXCursor_FunctionTemplate: objType = ObjectType::FunctionTemplate; break;
+      case CXCursor_ClassDecl: objType = ObjectType::Class; break;
+      case CXCursor_StructDecl: objType = ObjectType::Struct; break;
+      case CXCursor_EnumDecl: objType = ObjectType::Enum; break;
+      case CXCursor_VarDecl: objType = ObjectType::Variable; break;
+      case CXCursor_Namespace: objType = ObjectType::Namespace; break;
+      case CXCursor_MacroDefinition: objType = ObjectType::Macro; break;
+      default: objType = ObjectType::Unknown; break;
+    }
   }
 
   for (const auto &typeStr : typesBlacklist_)

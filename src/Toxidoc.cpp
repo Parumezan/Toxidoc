@@ -5,7 +5,57 @@
 #include "ObjectsManager/ObjectsManager.hpp"
 #include "Utils.hpp"
 
-static auto processDocumentationStatus(const std::vector<Object> &objects, bool lite_verbose = false) -> int {
+static auto showCoverageBar(const std::vector<Object> &objects) -> void {
+  spdlog::info("Documentation coverage per file:");
+
+  std::map<std::string, std::vector<Object>> docsByFile;
+  for (const auto &obj : objects) docsByFile[obj.getObjectPath().string()].push_back(obj);
+  size_t allTotalObjects = 0;
+  size_t allDocumentedObjects = 0;
+  size_t overallTitleOffset = 0;
+
+  for (const auto &[filePath, objs] : docsByFile)
+    if (filePath.length() > overallTitleOffset) overallTitleOffset = filePath.length();
+
+  for (const auto &[filePath, objs] : docsByFile) {
+    size_t totalObjects = 0;
+    size_t documentedObjects = 0;
+    for (const auto &obj : objs) {
+      if (obj.getState() == ObjectState::Removed) continue;
+      totalObjects++;
+      allTotalObjects++;
+      if (obj.isValid()) {
+        documentedObjects++;
+        allDocumentedObjects++;
+      }
+    }
+
+    auto status =
+        bk::ProgressBar(&documentedObjects, {
+                                                .total = totalObjects,
+                                                .message = fmt::format("{:<{}}", filePath, overallTitleOffset),
+                                                .style = bk::ProgressBarStyle::Rich,
+                                                .no_tty = true,
+                                                .show = true,
+                                            });
+    status->done();
+    cleanupProgressBar();
+    cleanupProgressBar();
+  }
+  auto overallStatus = bk::ProgressBar(&allDocumentedObjects,
+                                       {
+                                           .total = allTotalObjects,
+                                           .message = fmt::format("{:<{}}", "Overall coverage", overallTitleOffset),
+                                           .style = bk::ProgressBarStyle::Rich,
+                                           .no_tty = true,
+                                           .show = true,
+                                       });
+  overallStatus->done();
+  cleanupProgressBar();
+  cleanupProgressBar();
+}
+
+static auto processDocumentationStatus(const std::vector<Object> &objects, bool verbose, bool coverage) -> int {
   size_t undocumentedCount = 0;
   std::string statusReport;
 
@@ -16,22 +66,26 @@ static auto processDocumentationStatus(const std::vector<Object> &objects, bool 
   }
 
   for (auto &obj : objects) {
-    if (obj.isValid() && lite_verbose) continue;
+    if (obj.isValid() && verbose) continue;
     if (!obj.isValid() && obj.getState() != ObjectState::Removed) {
-      if (lite_verbose) {
-        std::cout << obj.getObjectPathAsString() << " " << obj.getObjectTypeAsString() << " " << obj.getObjectName()
-                  << std::endl;
-      } else {
+      if (verbose) {
         spdlog::warn("{} {} {} {}", obj.getObjectPathAsString(), obj.getObjectTypeAsString(), obj.getObjectName(),
                      obj.getStateAsString());
+      } else {
+        std::cout << obj.getObjectPathAsString() << " " << obj.getObjectTypeAsString() << " " << obj.getObjectName()
+                  << std::endl;
       }
       undocumentedCount++;
       continue;
     }
-    if (!lite_verbose) {
+    if (verbose) {
       spdlog::info("{} {} {} {}", obj.getObjectPathAsString(), obj.getObjectTypeAsString(), obj.getObjectName(),
                    obj.getStateAsString());
     }
+  }
+  if (coverage) {
+    showCoverageBar(objects);
+    return undocumentedCount > 0 ? 1 : 0;
   }
   undocumentedCount > 0 ? spdlog::info("{}/{} objects are documented, {} undocumented left",
                                        totalSize - undocumentedCount, totalSize, undocumentedCount)
@@ -57,8 +111,15 @@ int main(int ac, char **av) {
       cxxopts::value<std::vector<std::string>>()->default_value("Q_PROPERTY"))(
       "t,types", "Blacklist of object types to document (comma separated)",
       cxxopts::value<std::vector<std::string>>()->default_value(""))("type-list", "List of available object types")(
-      "l,lite-verbose", "Lite verbose output mode", cxxopts::value<bool>()->default_value("false"))(
-      "last-update", "Show the last update time of the documentation", cxxopts::value<bool>())("h,help", "Print usage");
+      "v,verbose", "Verbose *LITE* output mode", cxxopts::value<bool>()->default_value("false"))(
+      "last-update", "Show the last update time of the documentation", cxxopts::value<bool>())(
+      "d, coverage", "Remove the progress bar for documentation coverage",
+      cxxopts::value<bool>()->default_value("false"))(
+      "mod",
+      "add module name for clang parsing (e.g. --mod path/to/modules/qt_override.h in this case we use a header to "
+      "override QT macros, refers to mods folder to list all modules ; don't create your own module, the code is not "
+      "ready for that)",
+      cxxopts::value<std::string>())("h,help", "Print usage");
 
   cxxopts::ParseResult result;
   try {
@@ -79,8 +140,12 @@ int main(int ac, char **av) {
     return 0;
   }
 
+  bool coverageRequested = result["coverage"].as<bool>() == false;
+  bool verboseRequested = result["verbose"].as<bool>() == false;
+
   FilesManager filesManager(
       result.count("config") ? fs::path(result["config"].as<std::string>()) : fs::path(), result["no-save"].as<bool>(),
+      result.count("mod") ? fs::path(result["mod"].as<std::string>()) : fs::path(),
       result.count("source-paths") ? result["source-paths"].as<std::vector<std::string>>() : std::vector<std::string>{},
       result["header-extensions"].as<std::vector<std::string>>(), result["exclude-dirs"].as<std::vector<std::string>>(),
       result["blacklist"].as<std::vector<std::string>>(), result["types"].as<std::vector<std::string>>(),
@@ -92,7 +157,8 @@ int main(int ac, char **av) {
     return 1;
   }
 
-  ObjectsManager objectsManager(filesManager.getWordsBlacklist(), filesManager.getTypesBlacklist());
+  ObjectsManager objectsManager(filesManager.getWordsBlacklist(), filesManager.getTypesBlacklist(),
+                                filesManager.getModulePath());
 
   spdlog::info("Processing {} source files...", filesManager.getSourcePaths().size());
   size_t processedFiles = 0;
@@ -150,7 +216,7 @@ int main(int ac, char **av) {
       }
       spdlog::info("Saved {} objects to config", parsedObjects.size());
     }
-    return processDocumentationStatus(parsedObjects, result["lite-verbose"].as<bool>());
+    return processDocumentationStatus(parsedObjects, verboseRequested, coverageRequested);
   }
 
   std::vector<Object> mergedObjects;
@@ -191,5 +257,5 @@ int main(int ac, char **av) {
       return 1;
     }
   }
-  return processDocumentationStatus(mergedObjects, result["lite-verbose"].as<bool>());
+  return processDocumentationStatus(mergedObjects, verboseRequested, coverageRequested);
 }

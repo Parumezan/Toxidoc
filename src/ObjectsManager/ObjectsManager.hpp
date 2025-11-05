@@ -14,8 +14,22 @@
 
 namespace fs = std::filesystem;
 
+/**
+ * @brief Types of modules that can be used for parsing
+ *
+ * @enum ModuleType
+ */
+enum class ModuleType {
+  None,
+  QtOverride,
+};
+
 const std::map<ObjectType, std::string> ObjectTypeStringDocMap = {
     {ObjectType::Class, "@class"},
+};
+
+const std::map<ModuleType, std::string> ModulesList = {
+    {ModuleType::QtOverride, "qt_override.h"},
 };
 
 /**
@@ -30,7 +44,8 @@ class ObjectsManager {
    *
    * @param blacklist List of words to ignore when processing objects
    */
-  ObjectsManager(std::vector<std::string> wordsBlacklist = {}, std::vector<std::string> typesBlacklist = {});
+  ObjectsManager(std::vector<std::string> wordsBlacklist = {}, std::vector<std::string> typesBlacklist = {},
+                 fs::path modPath = {});
 
   /**
    * @brief Destructor for ObjectsManager
@@ -93,6 +108,8 @@ class ObjectsManager {
   std::vector<std::string> typesBlacklist_;
   std::vector<Object> objects_;
   fs::path currentFilePath_;
+  fs::path modPath_;
+  ModuleType moduleType_;
 };
 
 #endif /* !OBJECTSMANAGER_HPP_ */

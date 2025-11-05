@@ -28,8 +28,16 @@ Usage:
   -t, --types arg              Blacklist of object types to document (comma 
                                separated) (default: "")
       --type-list              List of available object types
-  -l, --lite-verbose           Lite verbose output mode
+  -v, --verbose                Verbose *LITE* output mode
       --last-update            Show the last update time of the 
                                documentation
+  -d, --coverage               Remove the progress bar for documentation 
+                               coverage
+      --mod arg                add module name for clang parsing (e.g. 
+                               --mod path/to/modules/qt_override.h in this 
+                               case we use a header to override QT macros, 
+                               refers to mods folder to list all modules ; 
+                               don't create your own module, the code is 
+                               not ready for that)
   -h, --help                   Print usage
 ```

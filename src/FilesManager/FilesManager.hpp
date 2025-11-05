@@ -37,7 +37,7 @@ class FilesManager {
    * @arg typesBlacklist List of object types to ignore
    * @arg recursive If true, directories will be searched recursively
    */
-  FilesManager(fs::path configPath, bool noSave, std::vector<std::string> paths,
+  FilesManager(fs::path configPath, bool noSave, fs::path modPath, std::vector<std::string> paths,
                std::vector<std::string> defaultHeaderExtensions, std::vector<std::string> defaultExcludeDirs,
                std::vector<std::string> wordsBlacklist, std::vector<std::string> typesBlacklist, bool recursive);
 
@@ -50,6 +50,11 @@ class FilesManager {
    * @brief Initializes the FilesManager by loading configuration and collecting source files
    */
   auto init() -> std::expected<void, std::string>;
+
+  /**
+   * @brief Gets the module path for clang parsing
+   */
+  auto getModulePath() const -> fs::path;
 
   /**
    * @brief Gets the list of source paths
@@ -114,6 +119,7 @@ class FilesManager {
   bool noSave_;
   std::vector<fs::path> sourcePaths_;
   fs::path configPath_;
+  fs::path modPath_;
   std::vector<std::string> excludeDirs_;
   std::vector<std::string> headerExtensions_;
   std::vector<std::string> wordsBlacklist_;

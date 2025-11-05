@@ -1,11 +1,12 @@
 #include "FilesManager.hpp"
 
-FilesManager::FilesManager(fs::path configPath, bool noSave, std::vector<std::string> paths,
+FilesManager::FilesManager(fs::path configPath, bool noSave, fs::path modPath, std::vector<std::string> paths,
                            std::vector<std::string> defaultHeaderExtensions,
                            std::vector<std::string> defaultExcludeDirs, std::vector<std::string> wordsBlacklist,
                            std::vector<std::string> typesBlacklist, bool recursive)
     : configPath_(configPath),
       noSave_(noSave),
+      modPath_(modPath),
       recursive_(recursive),
       headerExtensions_(defaultHeaderExtensions),
       excludeDirs_(defaultExcludeDirs),
@@ -46,6 +47,8 @@ auto FilesManager::init() -> std::expected<void, std::string> {
   return {};
 }
 
+auto FilesManager::getModulePath() const -> fs::path { return modPath_; }
+
 auto FilesManager::getSourcePaths() const -> std::vector<fs::path> { return sourcePaths_; }
 
 auto FilesManager::getSavedObjects() -> std::vector<Object> { return objects_; }
@@ -67,6 +70,8 @@ auto FilesManager::saveConfig(std::vector<Object> objects) -> std::expected<void
 
   configJson["last_saved"] =
       std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
+  configJson["module_path"] = modPath_.string();
 
   std::vector<std::string> sourcePathsStr;
   for (const auto &path : sourcePaths_) sourcePathsStr.push_back(path.string());
@@ -92,6 +97,9 @@ auto FilesManager::loadConfig() -> std::expected<void, std::string> {
   if (configJson.is_discarded()) return std::unexpected("Failed to parse config file");
   spdlog::info("Loading config from {}", configPath_.string());
 
+  if (configJson.contains("module_path") && configJson["module_path"].is_string()) {
+    modPath_ = fs::path(configJson["module_path"].get<std::string>());
+  }
   if (configJson.contains("last_saved") && configJson["last_saved"].is_number_unsigned()) {
     auto lastSavedSeconds = configJson["last_saved"].get<uint64_t>();
     lastSaveTime_ = std::chrono::system_clock::time_point(std::chrono::seconds(lastSavedSeconds));
