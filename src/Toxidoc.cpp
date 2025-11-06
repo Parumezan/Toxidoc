@@ -3,6 +3,7 @@
 
 #include "FilesManager/FilesManager.hpp"
 #include "ObjectsManager/ObjectsManager.hpp"
+#include "Toxiconfig.h"
 #include "Utils.hpp"
 
 static auto showCoverageBar(const std::vector<Object> &objects) -> void {
@@ -112,14 +113,14 @@ int main(int ac, char **av) {
       "t,types", "Blacklist of object types to document (comma separated)",
       cxxopts::value<std::vector<std::string>>()->default_value(""))("type-list", "List of available object types")(
       "v,verbose", "Verbose *LITE* output mode", cxxopts::value<bool>()->default_value("false"))(
-      "last-update", "Show the last update time of the documentation", cxxopts::value<bool>())(
       "d, coverage", "Remove the progress bar for documentation coverage",
       cxxopts::value<bool>()->default_value("false"))(
       "mod",
       "add module name for clang parsing (e.g. --mod path/to/modules/qt_override.h in this case we use a header to "
       "override QT macros, refers to mods folder to list all modules ; don't create your own module, the code is not "
       "ready for that)",
-      cxxopts::value<std::string>())("h,help", "Print usage");
+      cxxopts::value<std::string>())("version", "Print version information", cxxopts::value<bool>())("h,help",
+                                                                                                     "Print usage");
 
   cxxopts::ParseResult result;
   try {
@@ -132,9 +133,11 @@ int main(int ac, char **av) {
   if (result.count("help")) {
     std::cout << options.help() << std::endl;
     return 0;
-  }
-
-  if (result.count("type-list")) {
+  } else if (result.count("version")) {
+    std::cout << "Toxidoc version " << TOXIDOC_VERSION_MAJOR << "." << TOXIDOC_VERSION_MINOR << "."
+              << TOXIDOC_VERSION_ALTER << std::endl;
+    return 0;
+  } else if (result.count("type-list")) {
     std::cout << "Available object types to blacklist:" << std::endl;
     for (const auto &[type, name] : ObjectTypeStringMap) { std::cout << " - " << name << std::endl; }
     return 0;

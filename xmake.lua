@@ -12,3 +12,6 @@ target("toxidoc")
     add_includedirs("src")
     add_syslinks("clang")
     add_packages("nlohmann_json", "spdlog", "barkeep", "cxxopts")
+
+    add_configfiles("src/Toxiconfig.h.in", {prefixdir = "config"})
+    add_includedirs("$(builddir)/config")
